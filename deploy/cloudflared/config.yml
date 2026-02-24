@@ -1,0 +1,16 @@
+# Cloudflare Tunnel Configuration
+# Replace YOUR_TUNNEL_ID with your actual tunnel ID
+# Replace YOUR_DOMAIN with your domain
+
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Route all traffic to nginx
+  - hostname: memories.YOUR_DOMAIN.com
+    service: http://nginx:80
+    originRequest:
+      noTLSVerify: true
+  
+  # Catch-all rule (required)
+  - service: http_status:404

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker rm:*)",
+      "Bash(cd /z/Memories-APP && docker-compose logs --tail=50 backend 2>&1)",
+      "Bash(cd:*)",
+      "Bash(cd /z/Memories-APP && docker-compose logs --tail=30 backend 2>&1)",
+      "Bash(tail:*)",
+      "Bash(git config:*)",
+      "Bash(gh repo create:*)",
+      "Bash(where:*)"
+    ]
+  }
+}

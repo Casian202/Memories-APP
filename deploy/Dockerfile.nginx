@@ -1,0 +1,5 @@
+FROM nginx:alpine
+RUN apk add --no-cache curl
+COPY deploy/nginx.conf /etc/nginx/nginx.conf
+# Remove default config to avoid conflicts with our nginx.conf server block
+RUN rm -f /etc/nginx/conf.d/default.conf

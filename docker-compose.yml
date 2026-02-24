@@ -1,0 +1,75 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.backend
+    container_name: memories-backend
+    restart: always
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////data/sqlite/memories.db
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=10080
+      - REFRESH_TOKEN_EXPIRE_DAYS=30
+      - CORS_ORIGINS=http://localhost:8184,http://127.0.0.1:8184
+      - UPLOAD_DIR=/data/photos
+      - BACKUP_DIR=/data/backups
+      - LOG_DIR=/data/logs
+      - USERS_FILE=/data/sqlite/users.json
+    volumes:
+      - ./data/sqlite:/data/sqlite
+      - ./data/photos:/data/photos
+      - ./data/backups:/data/backups
+      - ./data/logs:/data/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - memories-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        - VITE_API_URL=/api
+    container_name: memories-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - memories-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.nginx
+    container_name: memories-nginx
+    restart: always
+    ports:
+      - "8184:80"
+    volumes:
+      - ./data/photos:/data/photos:ro
+    depends_on:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - memories-network
+
+networks:
+  memories-network:
+    driver: bridge
+
+volumes:
+  sqlite-data:
+  photos-data:
+  backups-data:
+  logs-data:
