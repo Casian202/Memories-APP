@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Shield, Users, Palette, Calendar, Database, Settings, Eye, EyeOff, Heart, Save, RotateCcw, Trash2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Shield, Users, Palette, Calendar, Database, Settings, Eye, EyeOff, Heart, Save, RotateCcw, Trash2, Upload, X, Image, Check, Loader2 } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 
@@ -217,6 +217,7 @@ function RelationshipManager() {
 
 function ThemesManager() {
   const queryClient = useQueryClient()
+  const [expandedTheme, setExpandedTheme] = useState(null)
 
   const { data: themes, isLoading } = useQuery({
     queryKey: ['themes'],
@@ -233,11 +234,43 @@ function ThemesManager() {
     onSuccess: () => {
       queryClient.invalidateQueries(['themes'])
       toast.success('Tema a fost activată!')
-      // Reload to apply theme
       window.location.reload()
     },
     onError: () => {
       toast.error('Eroare la activare')
+    }
+  })
+
+  const uploadBgMutation = useMutation({
+    mutationFn: async ({ themeId, file }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await api.post(`/themes/${themeId}/background`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['themes'])
+      queryClient.invalidateQueries(['active-theme'])
+      toast.success('Imaginea de fundal a fost încărcată!')
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.detail || 'Eroare la încărcare')
+    }
+  })
+
+  const deleteBgMutation = useMutation({
+    mutationFn: async (themeId) => {
+      await api.delete(`/themes/${themeId}/background`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['themes'])
+      queryClient.invalidateQueries(['active-theme'])
+      toast.success('Imaginea de fundal a fost ștearsă!')
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.detail || 'Eroare la ștergere')
     }
   })
 
@@ -246,7 +279,7 @@ function ThemesManager() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Selectează o temă. Temele sezoniere se activează automat (Crăciun, Valentine, Aniversare, etc.)
+        Selectează o temă și adaugă imagini de fundal personalizate. Temele sezoniere se activează automat.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
@@ -254,8 +287,14 @@ function ThemesManager() {
           <ThemeCard
             key={theme.id}
             theme={theme}
+            isExpanded={expandedTheme === theme.id}
+            onToggleExpand={() => setExpandedTheme(expandedTheme === theme.id ? null : theme.id)}
             onActivate={() => activateMutation.mutate(theme.id)}
             isActivating={activateMutation.isPending}
+            onUploadBg={(file) => uploadBgMutation.mutate({ themeId: theme.id, file })}
+            isUploadingBg={uploadBgMutation.isPending}
+            onDeleteBg={() => deleteBgMutation.mutate(theme.id)}
+            isDeletingBg={deleteBgMutation.isPending}
           />
         ))}
       </div>
@@ -263,29 +302,127 @@ function ThemesManager() {
   )
 }
 
-function ThemeCard({ theme, onActivate, isActivating }) {
+function ThemeCard({ theme, isExpanded, onToggleExpand, onActivate, isActivating, onUploadBg, isUploadingBg, onDeleteBg, isDeletingBg }) {
+  const fileInputRef = useRef(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  const bgImageUrl = theme.background_image 
+    ? `/photos/${theme.background_image}` 
+    : null
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleFile(file)
+    }
+  }
+
+  const handleFile = (file) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Te rog selectează o imagine validă')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Imaginea depășește limita de 10MB')
+      return
+    }
+    // Show preview
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    // Upload
+    onUploadBg(file)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setDragOver(true)
+  }
+
+  const handleDragLeave = () => setDragOver(false)
+
+  // Clear preview after upload completes
+  useEffect(() => {
+    if (!isUploadingBg && previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+  }, [isUploadingBg])
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className={`card relative overflow-hidden ${theme.is_active ? 'ring-2 ring-primary' : ''}`}
+      className={`card relative overflow-hidden transition-all duration-300 ${
+        theme.is_active ? 'ring-2 ring-primary shadow-lg' : ''
+      } ${isExpanded ? 'sm:col-span-2 lg:col-span-3' : ''}`}
     >
-      {/* Theme Preview Gradient */}
+      {/* Theme Preview Header - with bg image if available */}
       <div
-        className="h-20 -mx-5 -mt-5 mb-3"
+        className="h-24 -mx-5 -mt-5 mb-3 relative cursor-pointer"
+        onClick={onToggleExpand}
         style={{
-          background: `linear-gradient(135deg, ${theme.primary_color}, ${theme.secondary_color})`,
           borderRadius: 'var(--border-radius) var(--border-radius) 0 0',
         }}
       >
-        <div className="h-full flex items-center justify-center px-3">
+        {/* Gradient fallback */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(135deg, ${theme.primary_color}, ${theme.secondary_color})`,
+            borderRadius: 'inherit',
+          }}
+        />
+        
+        {/* Background image overlay */}
+        {bgImageUrl && (
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `url(${bgImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              borderRadius: 'inherit',
+            }}
+          />
+        )}
+        
+        {/* Dark overlay for text readability */}
+        <div
+          className="absolute inset-0 bg-black/20"
+          style={{ borderRadius: 'inherit' }}
+        />
+        
+        {/* Theme name */}
+        <div className="absolute inset-0 flex items-center justify-center px-3">
           <span
-            className="text-lg font-bold truncate"
-            style={{ color: theme.text_color, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}
+            className="text-lg font-bold truncate drop-shadow-md"
+            style={{ color: '#FFFFFF' }}
           >
             {theme.name}
           </span>
         </div>
+
+        {/* Active indicator */}
+        {theme.is_active && (
+          <div className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md">
+            <Check className="w-3.5 h-3.5 text-green-600" />
+          </div>
+        )}
+
+        {/* Background image indicator */}
+        {bgImageUrl && (
+          <div className="absolute top-2 left-2 bg-white/90 rounded-full p-1 shadow-md" title="Are imagine de fundal">
+            <Image className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+        )}
       </div>
 
       <p className="text-xs text-gray-500 mb-3 line-clamp-2">{theme.description}</p>
@@ -313,16 +450,118 @@ function ThemeCard({ theme, onActivate, isActivating }) {
           <span className="text-xs text-gray-400">Disponibilă</span>
         )}
 
-        {!theme.is_active && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={onActivate}
-            disabled={isActivating}
-            className="btn btn-ghost text-xs text-primary font-medium px-2 py-1"
+            onClick={onToggleExpand}
+            className="btn btn-ghost text-xs px-2 py-1"
+            title="Editează fundal"
           >
-            {isActivating ? '...' : 'Activează'}
+            <Image className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline ml-1">Fundal</span>
           </button>
-        )}
+          
+          {!theme.is_active && (
+            <button
+              onClick={onActivate}
+              disabled={isActivating}
+              className="btn btn-ghost text-xs text-primary font-medium px-2 py-1"
+            >
+              {isActivating ? '...' : 'Activează'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Expanded: Background Image Editor */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 pt-4 border-t border-gray-200/50 space-y-4">
+              <h4 className="text-sm font-semibold text-text flex items-center gap-2">
+                <Image className="w-4 h-4" />
+                Imagine de Fundal
+              </h4>
+
+              {/* Current Background Preview */}
+              {bgImageUrl && (
+                <div className="relative rounded-lg overflow-hidden group">
+                  <img
+                    src={bgImageUrl}
+                    alt={`Fundal ${theme.name}`}
+                    className="w-full h-32 sm:h-40 md:h-48 object-cover rounded-lg"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <button
+                      onClick={onDeleteBg}
+                      disabled={isDeletingBg}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-2 shadow-lg hover:bg-red-600"
+                      title="Șterge imaginea de fundal"
+                    >
+                      {isDeletingBg ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Area */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+                className={`relative border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer transition-all ${
+                  dragOver 
+                    ? 'border-primary bg-primary/5 scale-[1.02]' 
+                    : 'border-gray-300 hover:border-primary/50 hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                
+                {isUploadingBg ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <p className="text-sm text-gray-500">Se încarcă...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="w-8 h-8 text-gray-400" />
+                    <p className="text-sm text-gray-600">
+                      {bgImageUrl ? 'Înlocuiește imaginea' : 'Adaugă imagine de fundal'}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Trage o imagine sau apasă pentru a selecta
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      JPEG, PNG, WebP, GIF • Max 10MB
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Tip */}
+              <p className="text-xs text-gray-400 italic">
+                💡 Recomandare: folosește imagini de min. 1920×1080px pentru cel mai bun efect pe desktop.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

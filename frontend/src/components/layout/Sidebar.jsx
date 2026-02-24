@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { 
   Home, 
   Calendar, 
@@ -7,14 +8,18 @@ import {
   Settings, 
   Shield,
   X,
-  Heart as Logo
+  Heart as Logo,
+  Clock,
+  Sparkles
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import api from '../../services/api'
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: Home },
   { path: '/events', label: 'Evenimente', icon: Calendar },
   { path: '/surprises', label: 'Surprize', icon: Gift },
+  // Coming Soon is inserted dynamically after Surprises
   { path: '/motivations', label: 'Motivații', icon: Heart },
   { path: '/settings', label: 'Setări', icon: Settings },
 ]
@@ -25,6 +30,30 @@ const adminItems = [
 
 export default function Sidebar({ onClose }) {
   const { isAdmin } = useAuth()
+
+  // Fetch Coming Soon nav info
+  const { data: csNavInfo } = useQuery({
+    queryKey: ['coming-soon-nav'],
+    queryFn: async () => {
+      const res = await api.get('/coming-soon/nav-info')
+      return res.data
+    },
+    staleTime: 60000, // refresh every minute
+    retry: false,
+  })
+
+  // Build menu with dynamic Coming Soon item
+  const allMenuItems = [...menuItems]
+  if (csNavInfo) {
+    const csItem = {
+      path: '/coming-soon',
+      label: csNavInfo.current_name || 'În curând',
+      icon: csNavInfo.is_revealed ? Sparkles : Clock,
+    }
+    // Insert after Surprize (index 2 = surprises, so insert at 3)
+    const surpriseIdx = allMenuItems.findIndex(i => i.path === '/surprises')
+    allMenuItems.splice(surpriseIdx + 1, 0, csItem)
+  }
 
   return (
     <div className="h-full w-64 bg-card border-r border-gray-200/20 flex flex-col">
@@ -50,7 +79,7 @@ export default function Sidebar({ onClose }) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => (
+        {allMenuItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

@@ -7,11 +7,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
+from app.models.surprise import Surprise
 from app.schemas.surprise import SurpriseCreate, SurpriseUpdate, SurpriseResponse
 from app.services.surprise_service import SurpriseService
 from app.utils.security import get_current_user
 
 router = APIRouter()
+
+
+def _surprise_to_dict(surprise) -> dict:
+    """Convert a Surprise ORM object to a safe dict for JSON serialization."""
+    return {
+        "id": surprise.id,
+        "from_user_id": surprise.from_user_id,
+        "to_user_id": surprise.to_user_id,
+        "title": surprise.title,
+        "description": surprise.description,
+        "surprise_type": surprise.surprise_type,
+        "content_path": surprise.content_path,
+        "message": surprise.message,
+        "reveal_type": surprise.reveal_type,
+        "reveal_date": str(surprise.reveal_date) if surprise.reveal_date else None,
+        "reveal_time": str(surprise.reveal_time) if surprise.reveal_time else None,
+        "reveal_clicks": surprise.reveal_clicks,
+        "current_clicks": surprise.current_clicks,
+        "click_cooldown": surprise.click_cooldown,
+        "is_revealed": surprise.is_revealed,
+        "revealed_at": surprise.revealed_at.isoformat() if surprise.revealed_at else None,
+        "last_click_at": surprise.last_click_at.isoformat() if surprise.last_click_at else None,
+        "created_at": surprise.created_at.isoformat() if surprise.created_at else None,
+        "can_reveal": getattr(surprise, 'can_reveal', False),
+        "progress_percentage": getattr(surprise, 'progress_percentage', 0.0),
+        "from_user_name": surprise.from_user_name if hasattr(surprise, 'from_user_name') else "Partener",
+    }
 
 
 @router.get("/received")
@@ -24,7 +52,7 @@ async def get_received_surprises(
     surprises = await SurpriseService.get_received_surprises(
         db, current_user.id, include_revealed
     )
-    return surprises
+    return [_surprise_to_dict(s) for s in surprises]
 
 
 @router.get("/sent")
@@ -34,7 +62,7 @@ async def get_sent_surprises(
 ):
     """Get surprises sent by the current user."""
     surprises = await SurpriseService.get_sent_surprises(db, current_user.id)
-    return surprises
+    return [_surprise_to_dict(s) for s in surprises]
 
 
 @router.get("/{surprise_id}", response_model=SurpriseResponse)
@@ -199,3 +227,33 @@ async def reveal_surprise(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.post("/{surprise_id}/dismiss-notification")
+async def dismiss_surprise_notification(
+    surprise_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Dismiss the notification for a surprise so it won't pop up again."""
+    surprise = await SurpriseService.get_surprise_by_id(db, surprise_id, current_user.id)
+    if not surprise:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Surpriza nu a fost găsită"
+        )
+    
+    if surprise.to_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nu aveți permisiunea"
+        )
+    
+    # Mark notification as dismissed
+    from sqlalchemy import update
+    await db.execute(
+        update(Surprise).where(Surprise.id == surprise_id).values(notification_dismissed=True)
+    )
+    await db.commit()
+    
+    return {"message": "Notificarea a fost ascunsă"}

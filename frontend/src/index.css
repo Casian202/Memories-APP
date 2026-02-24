@@ -276,4 +276,51 @@ h4 { font-size: clamp(1rem, 2.5vw, 1.25rem); }
 /* Theme transition */
 body, .card, .btn, .input { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
 
+/* Background image support */
+body.has-bg-image {
+  background-color: transparent !important;
+}
+
+body.has-bg-image .min-h-screen {
+  background-color: transparent !important;
+}
+
+body.has-bg-image .card {
+  background-color: rgba(var(--color-card-rgb), 0.88) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.has-bg-image aside > div {
+  background-color: rgba(var(--color-card-rgb), 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body.has-bg-image .glass {
+  background-color: rgba(var(--color-card-rgb), 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body.has-bg-image .tab-nav {
+  background-color: rgba(var(--color-card-rgb), 0.85) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body.has-bg-image header {
+  background-color: rgba(var(--color-card-rgb), 0.88) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.has-bg-image .page-container {
+  background-color: transparent !important;
+}
+
+body.has-bg-image .bg-background {
+  background-color: transparent !important;
+}
+
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }

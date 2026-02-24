@@ -42,6 +42,8 @@ npm run build     # Production build
 npm run lint      # ESLint
 ```
 
+**Note**: Vite dev server proxies `/api` and `/uploads` to `http://backend:8000`. For local development outside Docker, change the proxy target in `vite.config.js` to `http://localhost:8000`.
+
 ### Backup
 ```bash
 docker-compose exec backend python -m app.services.backup_service
@@ -56,7 +58,8 @@ docker-compose exec backend python -m app.services.backup_service
 - **Models**: `backend/app/models/` - SQLAlchemy ORM models (user, event, photo, surprise, motivation, theme, relationship, message)
 - **Schemas**: `backend/app/schemas/` - Pydantic schemas for request/response validation
 - **Routers**: `backend/app/routers/` - API endpoints organized by domain (auth, events, photos, surprises, motivations, messages, themes, admin, settings)
-- **Services**: `backend/app/services/` - Business logic layer (auth_service, event_service, photo_service, surprise_service, theme_service)
+- **Services**: `backend/app/services/` - Business logic layer (auth_service, event_service, photo_service, surprise_service, theme_service, user_json_service)
+- **Utils**: `backend/app/utils/` - Helper functions (security, image_processor, date_helpers)
 
 ### Frontend (React + Vite)
 - **Entry Point**: [main.jsx](frontend/src/main.jsx)
@@ -86,14 +89,19 @@ All API routes are prefixed with `/api`. Main routers:
 
 API documentation available at `/docs` (Swagger) and `/redoc` when backend is running.
 
+**Health Check**: `GET /api/health` - Returns database connection status and table verification.
+
 ## Environment Variables
 
 Key variables (see [.env.example](.env.example)):
-- `SECRET_KEY` - Secret key for JWT signing (required, min 32 chars in production)
+- `JWT_SECRET` - Secret key for JWT signing (required, min 32 chars in production)
+- `JWT_ALGORITHM` - JWT algorithm (default: `HS256`)
+- `ACCESS_TOKEN_EXPIRE_MINUTES` - Access token lifetime (default: `10080` = 7 days)
+- `REFRESH_TOKEN_EXPIRE_DAYS` - Refresh token lifetime (default: `30` days)
 - `DATABASE_URL` - SQLite connection string (default: `sqlite+aiosqlite:///./data/sqlite/memories.db`)
-- `CORS_ORIGINS` - Comma-separated allowed origins (default: `*`)
+- `CORS_ORIGINS` - Comma-separated allowed origins
 - `UPLOAD_DIR`, `BACKUP_DIR`, `LOG_DIR` - Storage paths
-- `MAX_UPLOAD_SIZE` - Max upload size in bytes (default: 52428800 = 50MB)
+- `MAX_UPLOAD_SIZE` - Max upload size in MB (default: `50`)
 - `VITE_API_URL` - Frontend API base URL (default: `/api`)
 
 ## Data Storage
@@ -120,6 +128,8 @@ Two users are seeded on first run: `hubby` (admin) and `wifey` (user), both with
 - **Services**: Business logic and database operations
 - **Models**: SQLAlchemy async ORM definitions
 - **Schemas**: Pydantic validation for request/response
+- **Utils**: Helper functions (security, image processing, date helpers)
+- **Seeds**: Initial data population (themes, users)
 
 ### State Management
 - React Context: Auth state (AuthContext), Theme state (ThemeContext)
@@ -129,6 +139,13 @@ Two users are seeded on first run: `hubby` (admin) and `wifey` (user), both with
 - SQLite with WAL mode for better concurrency
 - Maximum 2 users enforced at application level
 - Relationships: User → Events, Photos, Surprises, Motivations, Sessions
+
+### Application Startup
+On startup, the application:
+1. Initializes database tables (via SQLAlchemy metadata)
+2. Initializes JSON user storage (`data/sqlite/users.json`)
+3. Syncs users from JSON to database (allows user persistence across DB resets)
+4. Seeds predefined themes if not present
 
 ### Theming System
 - 9 predefined themes (Default, Harry Potter houses, holidays, vacations)
@@ -141,3 +158,7 @@ Nginx acts as reverse proxy on port 8184:
 - Rate limiting: 10 req/s for API, 5 req/min for auth endpoints
 - Static file serving for `/photos`
 - Gzip compression and security headers
+
+## Testing
+
+This project does not currently have automated tests. When adding new features, manual testing via the Swagger UI at `/docs` is recommended.

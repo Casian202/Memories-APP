@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Gift, Plus, Lock, Eye, Send, Calendar, X } from 'lucide-react'
+import { Gift, Plus, Lock, Unlock, Eye, Send, Calendar, X, MousePointerClick, Sparkles, Heart } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -45,13 +45,13 @@ export default function SurprisesPage() {
           onClick={() => setActiveTab('received')}
           className={`tab-btn ${activeTab === 'received' ? 'active' : ''}`}
         >
-          Primite
+          Primite ({receivedSurprises?.length || 0})
         </button>
         <button
           onClick={() => setActiveTab('sent')}
           className={`tab-btn ${activeTab === 'sent' ? 'active' : ''}`}
         >
-          Trimise
+          Trimise ({sentSurprises?.length || 0})
         </button>
       </div>
 
@@ -130,31 +130,62 @@ function SurpriseCard({ surprise, index }) {
   const [clicks, setClicks] = useState(surprise.current_clicks || 0)
   const [isRevealed, setIsRevealed] = useState(surprise.is_revealed)
   const [showContent, setShowContent] = useState(false)
+  const [isClicking, setIsClicking] = useState(false)
   const queryClient = useQueryClient()
 
-  const isLocked = !surprise.is_revealed && (
+  const requiredClicks = surprise.reveal_clicks || 1
+  const progress = Math.min(100, (clicks / requiredClicks) * 100)
+  
+  const isLocked = !isRevealed && (
     (surprise.reveal_type === 'date' && new Date(surprise.reveal_date) > new Date()) ||
-    (surprise.reveal_type === 'clicks' && clicks < surprise.reveal_clicks) ||
+    (surprise.reveal_type === 'clicks' && clicks < requiredClicks) ||
     (surprise.reveal_type === 'both' && (
-      new Date(surprise.reveal_date) > new Date() || clicks < surprise.reveal_clicks
+      new Date(surprise.reveal_date) > new Date() || clicks < requiredClicks
     ))
   )
 
   const handleClick = async () => {
-    if (!isLocked && !surprise.is_revealed) {
+    // Already revealed - show content
+    if (isRevealed) {
       setShowContent(true)
       return
     }
 
-    if (isLocked && surprise.reveal_type !== 'date') {
+    // Unlockable (conditions met) - reveal it
+    if (!isLocked) {
+      try {
+        await api.post(`/surprises/${surprise.id}/reveal`)
+        setIsRevealed(true)
+        queryClient.invalidateQueries(['surprises'])
+      } catch (e) {
+        // ignore
+      }
+      setShowContent(true)
+      return
+    }
+
+    // Locked with clicks - register click
+    if (surprise.reveal_type === 'clicks' || surprise.reveal_type === 'both') {
+      setIsClicking(true)
       try {
         const response = await api.post(`/surprises/${surprise.id}/click`)
-        setClicks(response.data.current_clicks)
+        const newClicks = response.data.current_clicks
+        setClicks(newClicks)
         if (response.data.is_revealed) {
           setIsRevealed(true)
+          // Auto-show content after a brief delay for the reveal animation
+          setTimeout(() => setShowContent(true), 600)
+          queryClient.invalidateQueries(['surprises'])
         }
       } catch (error) {
-        toast.error('Eroare la procesare')
+        const detail = error.response?.data?.detail
+        if (typeof detail === 'string' && detail.includes('Așteptați')) {
+          // Cooldown - ignore silently
+        } else {
+          toast.error('Eroare la procesare')
+        }
+      } finally {
+        setTimeout(() => setIsClicking(false), 200)
       }
     }
   }
@@ -166,78 +197,204 @@ function SurpriseCard({ surprise, index }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05 }}
         onClick={handleClick}
-        className={`card-hover cursor-pointer relative overflow-hidden ${
-          isLocked ? 'bg-gradient-to-br from-gray-100 to-gray-200' : ''
-        }`}
+        whileTap={isLocked && surprise.reveal_type !== 'date' ? { scale: 0.95 } : {}}
+        className="cursor-pointer relative overflow-hidden rounded-xl min-h-[200px]"
+        style={{
+          background: isRevealed 
+            ? 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.15), rgba(var(--color-secondary-rgb), 0.15))'
+            : isLocked
+              ? 'linear-gradient(135deg, rgba(var(--color-card-rgb), 0.9), rgba(var(--color-card-rgb), 0.7))'
+              : 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-secondary-rgb), 0.1))',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(var(--color-primary-rgb), 0.2)',
+        }}
       >
         {isLocked ? (
-          <>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <Lock className="w-12 h-12 mx-auto text-gray-400 mb-2" />
-                <p className="text-gray-500 text-sm mb-2">Misterios</p>
-                {surprise.reveal_type === 'clicks' && (
-                  <p className="text-xs text-gray-400">
-                    {clicks}/{surprise.reveal_clicks} click-uri
-                  </p>
-                )}
-                {surprise.reveal_type === 'date' && (
-                  <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {format(new Date(surprise.reveal_date), 'd MMM yyyy', { locale: ro })}
-                  </p>
-                )}
+          /* ===== LOCKED STATE ===== */
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-6">
+            {/* Animated lock icon */}
+            <motion.div
+              animate={isClicking ? { rotate: [-5, 5, -5, 5, 0], scale: [1, 1.1, 1] } : {}}
+              transition={{ duration: 0.4 }}
+              className="mb-3"
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(var(--color-primary-rgb), 0.15)' }}>
+                <Lock className="w-8 h-8" style={{ color: 'var(--color-primary)' }} />
               </div>
-            </div>
-          </>
+            </motion.div>
+            
+            <p className="text-text font-medium mb-1">Surpriză misterioasă</p>
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+              De la {surprise.from_user_name || 'Partener'}
+            </p>
+
+            {/* Progress for click-based reveals */}
+            {(surprise.reveal_type === 'clicks' || surprise.reveal_type === 'both') && (
+              <div className="w-full max-w-[180px] space-y-2">
+                <div className="flex items-center justify-center gap-1.5 text-xs" style={{ color: 'var(--color-primary)' }}>
+                  <MousePointerClick className="w-3.5 h-3.5" />
+                  <span>{clicks}/{requiredClicks} click-uri</span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden"
+                  style={{ background: 'rgba(var(--color-primary-rgb), 0.15)' }}>
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: 'var(--color-primary)' }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Date info */}
+            {(surprise.reveal_type === 'date' || surprise.reveal_type === 'both') && surprise.reveal_date && (
+              <div className="flex items-center gap-1.5 text-xs mt-2" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+                <Calendar className="w-3.5 h-3.5" />
+                <span>{format(new Date(surprise.reveal_date), 'd MMM yyyy', { locale: ro })}</span>
+              </div>
+            )}
+
+            {surprise.reveal_type !== 'date' && (
+              <p className="text-xs mt-3 animate-pulse" style={{ color: 'var(--color-primary)' }}>
+                Apasă pentru a debloca!
+              </p>
+            )}
+          </div>
+        ) : isRevealed ? (
+          /* ===== REVEALED STATE ===== */
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-6">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
+                style={{ background: 'rgba(var(--color-primary-rgb), 0.2)' }}>
+                <Gift className="w-8 h-8" style={{ color: 'var(--color-primary)' }} />
+              </div>
+            </motion.div>
+            <h3 className="font-semibold text-text text-center">{surprise.title || 'Surpriză'}</h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+              De la {surprise.from_user_name || 'Partener'}
+            </p>
+            <p className="text-xs mt-2 flex items-center gap-1" style={{ color: 'var(--color-primary)' }}>
+              <Eye className="w-3.5 h-3.5" />
+              Apasă pentru a vedea
+            </p>
+          </div>
         ) : (
-          <div className="text-center py-8">
-            <Gift className="w-12 h-12 mx-auto text-primary mb-2" />
-            <h3 className="font-medium text-text">{surprise.title}</h3>
-            <p className="text-sm text-gray-500">Apasă pentru a vedea</p>
+          /* ===== UNLOCKABLE STATE (conditions met but not yet revealed) ===== */
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-6">
+            <motion.div
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
+                style={{ background: 'rgba(var(--color-primary-rgb), 0.2)' }}>
+                <Unlock className="w-8 h-8" style={{ color: 'var(--color-primary)' }} />
+              </div>
+            </motion.div>
+            <h3 className="font-semibold text-text text-center">{surprise.title || 'Surpriză'}</h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+              De la {surprise.from_user_name || 'Partener'}
+            </p>
+            <motion.p 
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="text-xs mt-2 flex items-center gap-1"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Apasă pentru a dezvălui!
+            </motion.p>
           </div>
         )}
       </motion.div>
 
+      {/* ===== REVEAL MODAL ===== */}
       <AnimatePresence>
         {showContent && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowContent(false)}
           >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            
             <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="card max-w-md w-full text-center"
+              initial={{ scale: 0.7, opacity: 0, rotateY: 90 }}
+              animate={{ scale: 1, opacity: 1, rotateY: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-md w-full rounded-2xl overflow-hidden shadow-2xl"
+              style={{
+                background: 'var(--color-card)',
+                border: '2px solid rgba(var(--color-primary-rgb), 0.3)',
+              }}
             >
-              <button
-                onClick={() => setShowContent(false)}
-                className="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              
-              <Gift className="w-16 h-16 mx-auto text-primary fill-primary mb-4" />
-              <h2 className="text-xl font-bold text-primary mb-2">{surprise.title}</h2>
-              
-              {surprise.message && (
-                <p className="text-text mb-4">{surprise.message}</p>
-              )}
-              
-              {surprise.content_path && (
-                <img
-                  src={`/photos/surprises/${surprise.content_path}`}
-                  alt=""
-                  className="w-full rounded-lg mb-4"
-                />
-              )}
-              
-              <p className="text-sm text-gray-500">
-                De la {surprise.from_user_name}
-              </p>
+              {/* Header gradient */}
+              <div className="p-6 text-center" style={{
+                background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.15), rgba(var(--color-secondary-rgb), 0.15))'
+              }}>
+                <button
+                  onClick={() => setShowContent(false)}
+                  className="absolute top-3 right-3 p-1.5 rounded-full transition-colors"
+                  style={{ background: 'rgba(var(--color-text-rgb), 0.1)' }}
+                >
+                  <X className="w-4 h-4 text-text" />
+                </button>
+
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  <Gift className="w-14 h-14 mx-auto mb-3" style={{ color: 'var(--color-primary)' }} />
+                </motion.div>
+                <h2 className="text-xl font-bold text-text">{surprise.title || 'Surpriză!'}</h2>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+                  De la {surprise.from_user_name || 'Partener'}
+                </p>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {surprise.content_path && (
+                  <img
+                    src={`/photos/${surprise.content_path}`}
+                    alt="Surpriză"
+                    className="w-full rounded-lg mb-4 shadow-md"
+                    onError={(e) => { e.target.style.display = 'none' }}
+                  />
+                )}
+                
+                {surprise.message && (
+                  <div className="rounded-xl p-4 mb-4" style={{
+                    background: 'rgba(var(--color-primary-rgb), 0.08)'
+                  }}>
+                    <p className="text-text text-center italic leading-relaxed whitespace-pre-wrap">
+                      "{surprise.message}"
+                    </p>
+                  </div>
+                )}
+
+                {!surprise.message && !surprise.content_path && (
+                  <div className="text-center py-4">
+                    <Heart className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--color-primary)' }} />
+                    <p className="text-text">O surpriză plină de dragoste! 💕</p>
+                  </div>
+                )}
+
+                <p className="text-center text-xs" style={{ color: 'var(--color-text)', opacity: 0.5 }}>
+                  {surprise.created_at && format(new Date(surprise.created_at), 'd MMMM yyyy', { locale: ro })}
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -263,12 +420,30 @@ function CreateSurpriseModal({ onClose }) {
     setLoading(true)
     
     try {
-      await api.post('/surprises', formData)
+      // Clean form data - convert empty strings to null for optional fields
+      const cleanData = {
+        ...formData,
+        title: formData.title || null,
+        reveal_date: formData.reveal_date || null,
+      }
+      // Remove reveal_date if not needed
+      if (formData.reveal_type === 'clicks' && !formData.reveal_date) {
+        delete cleanData.reveal_date
+      }
+      await api.post('/surprises', cleanData)
       toast.success('Surpriza a fost creată!')
       queryClient.invalidateQueries(['surprises'])
       onClose()
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Eroare la creare')
+      // Handle pydantic validation errors (422) which return array of error objects
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail.map(e => e.msg).join(', '))
+      } else if (typeof detail === 'string') {
+        toast.error(detail)
+      } else {
+        toast.error('Eroare la creare')
+      }
     } finally {
       setLoading(false)
     }
@@ -288,9 +463,9 @@ function CreateSurpriseModal({ onClose }) {
         className="card max-w-md w-full max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-primary">Surpriză Nouă</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
-            <X className="w-5 h-5" />
+          <h2 className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>Surpriză Nouă</h2>
+          <button onClick={onClose} className="p-2 rounded-full" style={{ background: 'rgba(var(--color-text-rgb), 0.1)' }}>
+            <X className="w-5 h-5 text-text" />
           </button>
         </div>
 

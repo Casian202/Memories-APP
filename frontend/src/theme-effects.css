@@ -1,0 +1,1035 @@
+/* =========================================
+   THEME EFFECTS - Ambient Animations
+   ========================================= */
+
+/* Container for all effects - covers full viewport, no pointer events */
+.theme-effects-container {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ==========================================
+   IMMERSIVE THEME BACKGROUNDS
+   Applied to body via data-theme attribute
+   ========================================== */
+
+/* CHRISTMAS - Snowy night with warm glow */
+[data-theme="christmas"] body:not(.has-bg-image),
+body[data-theme="christmas"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 85% 85%, rgba(255,140,0,0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 15% 90%, rgba(139,0,0,0.06) 0%, transparent 35%),
+    radial-gradient(ellipse at 50% 0%, rgba(100,150,200,0.08) 0%, transparent 50%),
+    linear-gradient(175deg, #0a1628 0%, #0f2027 20%, #0c1a0c 50%, #1a0a0a 80%, #0f1520 100%) !important;
+}
+
+/* Frosty window overlay for Christmas */
+.theme-bg-christmas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(173,216,230,0.04) 0%, transparent 30%),
+    radial-gradient(circle at 80% 15%, rgba(173,216,230,0.03) 0%, transparent 25%),
+    radial-gradient(circle at 50% 80%, rgba(255,140,0,0.05) 0%, transparent 30%);
+}
+
+/* SLYTHERIN - Dark dungeon with green firelight */
+[data-theme="slytherin"] body:not(.has-bg-image),
+body[data-theme="slytherin"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 30% 80%, rgba(46,139,87,0.12) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 90%, rgba(46,139,87,0.08) 0%, transparent 35%),
+    radial-gradient(ellipse at 50% 20%, rgba(26,71,42,0.06) 0%, transparent 40%),
+    radial-gradient(circle at 15% 85%, rgba(0,255,100,0.04) 0%, transparent 20%),
+    radial-gradient(circle at 85% 85%, rgba(0,200,80,0.03) 0%, transparent 20%),
+    linear-gradient(175deg, #0a0f0a 0%, #0d1a10 25%, #0a1a0d 50%, #051008 75%, #080e08 100%) !important;
+}
+
+/* Stone wall texture overlay for Slytherin */
+.theme-bg-slytherin {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(46,139,87,0.02) 0px, transparent 1px, transparent 80px, rgba(46,139,87,0.02) 81px),
+    repeating-linear-gradient(0deg, rgba(46,139,87,0.02) 0px, transparent 1px, transparent 40px, rgba(46,139,87,0.02) 41px),
+    radial-gradient(ellipse at 25% 75%, rgba(0,255,100,0.05) 0%, transparent 35%);
+}
+
+/* GRYFFINDOR - Warm common room with fireplace */
+[data-theme="gryffindor"] body:not(.has-bg-image),
+body[data-theme="gryffindor"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 50% 95%, rgba(174,0,1,0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at 30% 85%, rgba(255,120,0,0.08) 0%, transparent 35%),
+    radial-gradient(ellipse at 70% 85%, rgba(255,80,0,0.06) 0%, transparent 30%),
+    radial-gradient(ellipse at 50% 10%, rgba(211,166,37,0.04) 0%, transparent 35%),
+    linear-gradient(175deg, #1a0a05 0%, #1e0c08 20%, #200e0a 40%, #1a0805 70%, #150a08 100%) !important;
+}
+
+/* Warm glow overlay for Gryffindor */
+.theme-bg-gryffindor {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(255,100,0,0.06) 0%, transparent 45%),
+    radial-gradient(circle at 80% 70%, rgba(211,166,37,0.03) 0%, transparent 25%);
+}
+
+/* VALENTINE - Romantic pink/rose garden */
+[data-theme="valentine"] body:not(.has-bg-image),
+body[data-theme="valentine"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(255,182,193,0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 30%, rgba(255,105,180,0.10) 0%, transparent 35%),
+    radial-gradient(ellipse at 50% 80%, rgba(255,20,147,0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(255,182,193,0.10) 0%, transparent 25%),
+    linear-gradient(175deg, #fff5f7 0%, #ffe8ee 30%, #ffd6e0 60%, #ffecf0 100%) !important;
+}
+
+/* NEW YEAR - Midnight celebration sky */
+[data-theme="new_year"] body:not(.has-bg-image),
+body[data-theme="new_year"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 30% 15%, rgba(65,105,225,0.10) 0%, transparent 35%),
+    radial-gradient(ellipse at 70% 10%, rgba(138,43,226,0.08) 0%, transparent 30%),
+    radial-gradient(ellipse at 50% 50%, rgba(255,215,0,0.04) 0%, transparent 40%),
+    radial-gradient(circle at 20% 80%, rgba(255,215,0,0.03) 0%, transparent 20%),
+    radial-gradient(circle at 80% 75%, rgba(65,105,225,0.04) 0%, transparent 20%),
+    linear-gradient(175deg, #05051a 0%, #0a0a2e 25%, #0f0f28 50%, #0a0a1e 75%, #050514 100%) !important;
+}
+
+/* ANNIVERSARY - Elegant golden warmth */
+[data-theme="anniversary"] body:not(.has-bg-image),
+body[data-theme="anniversary"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(212,175,55,0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 20% 70%, rgba(201,162,39,0.06) 0%, transparent 35%),
+    radial-gradient(ellipse at 80% 80%, rgba(184,134,11,0.05) 0%, transparent 30%),
+    linear-gradient(175deg, #fdf8ef 0%, #faf0d8 30%, #f5e6c8 60%, #fdf5e8 100%) !important;
+}
+
+/* VACATION SKI - Icy mountain panorama */
+[data-theme="vacation_ski"] body:not(.has-bg-image),
+body[data-theme="vacation_ski"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(135,206,250,0.12) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 30%, rgba(176,224,230,0.10) 0%, transparent 35%),
+    radial-gradient(ellipse at 50% 90%, rgba(200,230,255,0.08) 0%, transparent 40%),
+    linear-gradient(175deg, #e8f4fd 0%, #d4ecf7 30%, #c8e4f0 60%, #e0f0fa 100%) !important;
+}
+
+/* VACATION BEACH - Tropical sunset ocean */
+[data-theme="vacation_beach"] body:not(.has-bg-image),
+body[data-theme="vacation_beach"]:not(.has-bg-image) {
+  background:
+    radial-gradient(ellipse at 80% 10%, rgba(255,165,0,0.10) 0%, transparent 35%),
+    radial-gradient(ellipse at 20% 30%, rgba(64,224,208,0.08) 0%, transparent 35%),
+    radial-gradient(ellipse at 50% 80%, rgba(0,206,209,0.06) 0%, transparent 40%),
+    linear-gradient(175deg, #e0f7fa 0%, #d4f1f4 25%, #c8ecee 50%, #d8f3f5 100%) !important;
+}
+
+/* ==========================================
+   CHRISTMAS THEME
+   ========================================== */
+
+/* Snowflakes falling */
+.snowflake {
+  position: fixed;
+  top: -20px;
+  color: #fff;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
+  animation: snowfall linear infinite;
+  z-index: 1;
+}
+
+@keyframes snowfall {
+  0% {
+    transform: translateY(-10px) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(25vh) translateX(var(--swing, 15px)) rotate(90deg);
+  }
+  50% {
+    transform: translateY(50vh) translateX(calc(var(--swing, 15px) * -1)) rotate(180deg);
+  }
+  75% {
+    transform: translateY(75vh) translateX(var(--swing, 15px)) rotate(270deg);
+  }
+  100% {
+    transform: translateY(105vh) translateX(0) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+/* Christmas tree */
+.christmas-tree {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  font-size: 80px;
+  z-index: 2;
+  filter: drop-shadow(0 0 10px rgba(34, 139, 34, 0.5));
+  animation: tree-sway 4s ease-in-out infinite;
+}
+
+@keyframes tree-sway {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+.tree-star {
+  text-align: center;
+  font-size: 24px;
+  animation: star-glow 2s ease-in-out infinite alternate;
+  position: relative;
+  top: 10px;
+}
+
+@keyframes star-glow {
+  0% { filter: brightness(1) drop-shadow(0 0 5px gold); }
+  100% { filter: brightness(1.5) drop-shadow(0 0 15px gold); }
+}
+
+.tree-body {
+  position: relative;
+}
+
+.tree-layer {
+  text-align: center;
+}
+
+.tree-lights {
+  position: absolute;
+  inset: 0;
+}
+
+.tree-light {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  animation: light-blink 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes light-blink {
+  0% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px currentColor; }
+}
+
+/* Christmas garland */
+.christmas-garland {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 0 10px;
+  z-index: 2;
+}
+
+.garland-light {
+  width: 8px;
+  height: 12px;
+  border-radius: 0 0 50% 50%;
+  animation: garland-glow 2s ease-in-out infinite alternate;
+  margin-top: -2px;
+  box-shadow: 0 2px 8px currentColor;
+}
+
+@keyframes garland-glow {
+  0% { opacity: 0.4; filter: brightness(0.7); }
+  100% { opacity: 1; filter: brightness(1.3); }
+}
+
+/* Christmas gifts */
+.christmas-gifts {
+  position: fixed;
+  bottom: 80px;
+  right: 110px;
+  z-index: 2;
+}
+
+.gift-box {
+  position: absolute;
+  animation: gift-bounce 3s ease-in-out infinite;
+}
+
+.gift-box-1 { font-size: 28px; bottom: 0; right: 0; animation-delay: 0s; }
+.gift-box-2 { font-size: 22px; bottom: 0; right: 35px; animation-delay: 0.5s; }
+.gift-box-3 { font-size: 18px; bottom: 0; right: 15px; animation-delay: 1s; }
+
+@keyframes gift-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* ==========================================
+   VALENTINE'S DAY THEME
+   ========================================== */
+
+.floating-heart {
+  position: fixed;
+  bottom: -30px;
+  animation: float-up-heart linear infinite;
+  z-index: 1;
+}
+
+@keyframes float-up-heart {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--heart-opacity, 0.4);
+  }
+  50% {
+    transform: translateY(-50vh) rotate(var(--rotation, 15deg)) scale(1.1);
+  }
+  90% {
+    opacity: var(--heart-opacity, 0.4);
+  }
+  100% {
+    transform: translateY(-110vh) rotate(calc(var(--rotation, 15deg) * -1)) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.rose-petal {
+  position: fixed;
+  top: -30px;
+  animation: petal-fall linear infinite;
+  z-index: 1;
+}
+
+@keyframes petal-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg) translateX(0);
+    opacity: 0;
+  }
+  10% { opacity: 0.3; }
+  50% {
+    transform: translateY(50vh) rotate(180deg) translateX(30px);
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg) translateX(-20px);
+    opacity: 0;
+  }
+}
+
+.valentine-border-bottom {
+  position: fixed;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  z-index: 1;
+}
+
+/* ==========================================
+   NEW YEAR THEME
+   ========================================== */
+
+.ny-sparkle {
+  position: fixed;
+  border-radius: 50%;
+  animation: sparkle-twinkle ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Fireworks */
+.firework {
+  position: fixed;
+  width: 4px;
+  height: 4px;
+  animation: firework-launch ease-out infinite;
+  z-index: 1;
+}
+
+@keyframes firework-launch {
+  0% { opacity: 0; transform: scale(0); }
+  10% { opacity: 1; transform: scale(0.5); }
+  40% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+.firework-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  animation: firework-burst ease-out infinite;
+  animation-duration: inherit;
+  animation-delay: inherit;
+}
+
+@keyframes firework-burst {
+  0% {
+    transform: rotate(var(--angle)) translateY(0);
+    opacity: 0;
+  }
+  20% { opacity: 0; }
+  30% { opacity: 1; }
+  60% {
+    transform: rotate(var(--angle)) translateY(calc(var(--fw-size, 40px) * -1));
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--angle)) translateY(calc(var(--fw-size, 40px) * -1.5));
+    opacity: 0;
+  }
+}
+
+/* Confetti */
+.confetti {
+  position: fixed;
+  top: -20px;
+  border-radius: 2px;
+  animation: confetti-fall linear infinite;
+  z-index: 1;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(var(--confetti-rotate, 720deg));
+    opacity: 0.3;
+  }
+}
+
+/* ==========================================
+   GRYFFINDOR THEME
+   ========================================== */
+
+.ember-particle {
+  position: fixed;
+  bottom: -10px;
+  border-radius: 50%;
+  animation: ember-rise linear infinite;
+  z-index: 1;
+}
+
+@keyframes ember-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: var(--ember-opacity, 0.5);
+  }
+  50% {
+    transform: translateY(-50vh) translateX(20px) scale(0.8);
+  }
+  100% {
+    transform: translateY(-110vh) translateX(-10px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.gryffindor-crest-glow {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(211, 166, 37, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: crest-pulse 4s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes crest-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
+}
+
+.flame-border {
+  position: fixed;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 30px;
+  z-index: 1;
+}
+
+.flame-tongues {
+  position: absolute;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to top, rgba(174, 0, 1, 0.6), rgba(211, 166, 37, 0.4), transparent);
+  border-radius: 50% 50% 0 0;
+  animation: flame-flicker ease-in-out infinite alternate;
+}
+
+@keyframes flame-flicker {
+  0% { transform: scaleY(1) scaleX(1); opacity: 0.6; }
+  50% { transform: scaleY(1.3) scaleX(0.8); opacity: 0.8; }
+  100% { transform: scaleY(0.7) scaleX(1.2); opacity: 0.5; }
+}
+
+/* ==========================================
+   SLYTHERIN THEME
+   ========================================== */
+
+.slytherin-bubble {
+  position: fixed;
+  bottom: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(46, 139, 87, 0.6), rgba(26, 71, 42, 0.3));
+  border: 1px solid rgba(46, 139, 87, 0.3);
+  animation: bubble-rise linear infinite;
+  z-index: 1;
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: var(--bubble-opacity, 0.3);
+  }
+  50% {
+    transform: translateY(-50vh) translateX(15px) scale(1.1);
+  }
+  100% {
+    transform: translateY(-110vh) translateX(-10px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.slytherin-mist {
+  position: fixed;
+  width: 300px;
+  height: 100px;
+  background: radial-gradient(ellipse, rgba(46, 139, 87, 0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: mist-drift ease-in-out infinite;
+  z-index: 0;
+}
+
+.slytherin-mist-1 {
+  bottom: 100px;
+  left: -50px;
+  animation-duration: 12s;
+}
+.slytherin-mist-2 {
+  bottom: 150px;
+  right: -30px;
+  animation-duration: 15s;
+  animation-delay: 3s;
+}
+.slytherin-mist-3 {
+  top: 60%;
+  left: 30%;
+  animation-duration: 18s;
+  animation-delay: 6s;
+}
+
+@keyframes mist-drift {
+  0%, 100% { transform: translateX(0) translateY(0) scale(1); opacity: 0.4; }
+  25% { transform: translateX(40px) translateY(-20px) scale(1.1); opacity: 0.6; }
+  50% { transform: translateX(80px) translateY(10px) scale(1.2); opacity: 0.4; }
+  75% { transform: translateX(30px) translateY(-10px) scale(0.9); opacity: 0.5; }
+}
+
+.potion-drip {
+  position: fixed;
+  top: -10px;
+  width: 3px;
+  height: 15px;
+  background: linear-gradient(to bottom, rgba(46, 139, 87, 0.7), transparent);
+  border-radius: 0 0 50% 50%;
+  animation: drip-fall linear infinite;
+  z-index: 1;
+}
+
+@keyframes drip-fall {
+  0% { transform: translateY(-10px); opacity: 0.7; }
+  100% { transform: translateY(110vh); opacity: 0; }
+}
+
+.serpent-glow {
+  position: fixed;
+  bottom: 80px;
+  left: 20px;
+  width: 80px;
+  height: 40px;
+  background: radial-gradient(ellipse, rgba(46, 139, 87, 0.2) 0%, transparent 70%);
+  animation: serpent-eyes 3s ease-in-out infinite alternate;
+  z-index: 1;
+}
+
+@keyframes serpent-eyes {
+  0% { opacity: 0.2; }
+  100% { opacity: 0.6; }
+}
+
+/* ==========================================
+   ANNIVERSARY THEME
+   ========================================== */
+
+.golden-sparkle {
+  position: fixed;
+  background: #D4AF37;
+  border-radius: 50%;
+  animation: golden-twinkle ease-in-out infinite;
+  box-shadow: 0 0 6px #D4AF37, 0 0 12px rgba(212, 175, 55, 0.3);
+  z-index: 1;
+}
+
+@keyframes golden-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 0.8; transform: scale(1) rotate(180deg); }
+}
+
+.anniversary-rose {
+  position: fixed;
+  bottom: -30px;
+  animation: rose-float linear infinite;
+  z-index: 1;
+}
+
+@keyframes rose-float {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% { opacity: 0.3; }
+  100% {
+    transform: translateY(-110vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.golden-rings {
+  position: fixed;
+  bottom: 100px;
+  right: 30px;
+  z-index: 1;
+}
+
+.golden-ring {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(212, 175, 55, 0.3);
+  border-radius: 50%;
+  position: absolute;
+  animation: ring-pulse 4s ease-in-out infinite;
+}
+
+.golden-ring-1 { right: 0; bottom: 0; animation-delay: 0s; }
+.golden-ring-2 { right: -15px; bottom: 15px; animation-delay: 2s; }
+
+@keyframes ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.1); opacity: 0.6; border-color: rgba(212, 175, 55, 0.5); }
+}
+
+/* ==========================================
+   VACATION SKI THEME
+   ========================================== */
+
+.ski-snow {
+  position: fixed;
+  top: -10px;
+  background: #fff;
+  border-radius: 50%;
+  animation: ski-snowfall linear infinite;
+  z-index: 1;
+}
+
+@keyframes ski-snowfall {
+  0% {
+    transform: translateY(-10px) translateX(0);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(50vh) translateX(10px);
+  }
+  100% {
+    transform: translateY(105vh) translateX(-5px);
+    opacity: 0.2;
+  }
+}
+
+.ski-mountains {
+  position: fixed;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 120px;
+  z-index: 0;
+}
+
+.frost-edge {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 30px;
+  z-index: 1;
+}
+
+.frost-edge-top {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(165, 216, 255, 0.15), transparent);
+}
+
+.frost-edge-bottom {
+  bottom: 60px;
+  background: linear-gradient(to top, rgba(165, 216, 255, 0.15), transparent);
+}
+
+/* ==========================================
+   VACATION BEACH THEME
+   ========================================== */
+
+.beach-bubble {
+  position: fixed;
+  bottom: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(64, 224, 208, 0.4), rgba(64, 224, 208, 0.1));
+  border: 1px solid rgba(64, 224, 208, 0.2);
+  animation: beach-bubble-rise linear infinite;
+  z-index: 1;
+}
+
+@keyframes beach-bubble-rise {
+  0% { transform: translateY(0) scale(1); opacity: 0.3; }
+  100% { transform: translateY(-110vh) scale(0.5); opacity: 0; }
+}
+
+.beach-waves {
+  position: fixed;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: -5%;
+  width: 110%;
+  height: 100%;
+  background: transparent;
+  border-radius: 50% 50% 0 0;
+}
+
+.wave-1 {
+  background: rgba(64, 224, 208, 0.08);
+  animation: wave-move 8s ease-in-out infinite;
+}
+
+.wave-2 {
+  background: rgba(64, 224, 208, 0.06);
+  animation: wave-move 10s ease-in-out infinite reverse;
+  animation-delay: 1s;
+}
+
+.wave-3 {
+  background: rgba(64, 224, 208, 0.04);
+  animation: wave-move 12s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+@keyframes wave-move {
+  0%, 100% { transform: translateX(-5%) scaleY(1); }
+  50% { transform: translateX(5%) scaleY(1.3); }
+}
+
+.beach-sun {
+  position: fixed;
+  top: 20px;
+  right: 40px;
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle, rgba(244, 208, 63, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: sun-glow 4s ease-in-out infinite alternate;
+  z-index: 1;
+}
+
+@keyframes sun-glow {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.3); opacity: 0.8; }
+}
+
+.beach-float {
+  position: fixed;
+  bottom: 80px;
+  animation: beach-item-float ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes beach-item-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-15px) rotate(5deg); }
+  50% { transform: translateY(-5px) rotate(-3deg); }
+  75% { transform: translateY(-20px) rotate(3deg); }
+}
+
+/* ==========================================
+   THEME-SPECIFIC UI OVERRIDES
+   ========================================== */
+
+/* Christmas theme */
+[data-theme="christmas"] {
+  --color-border: #2A3A2A;
+}
+
+[data-theme="christmas"] .card {
+  border-color: rgba(34, 139, 34, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 215, 0, 0.05);
+}
+
+[data-theme="christmas"] .btn-primary {
+  background: linear-gradient(135deg, #C41E3A, #8B0000);
+  box-shadow: 0 4px 14px -3px rgba(196, 30, 58, 0.4);
+}
+
+[data-theme="christmas"] .page-header {
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+[data-theme="christmas"] .input {
+  border-color: rgba(34, 139, 34, 0.3);
+}
+
+[data-theme="christmas"] .input:focus {
+  box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.2);
+}
+
+/* Valentine theme */
+[data-theme="valentine"] {
+  --color-border: #FFD6D6;
+}
+
+[data-theme="valentine"] .card {
+  border-color: rgba(255, 107, 107, 0.2);
+  box-shadow: 0 1px 8px rgba(255, 107, 107, 0.08);
+}
+
+[data-theme="valentine"] .btn-primary {
+  background: linear-gradient(135deg, #FF6B6B, #FF8E8E);
+  box-shadow: 0 4px 14px -3px rgba(255, 107, 107, 0.4);
+}
+
+[data-theme="valentine"] .page-header {
+  text-shadow: 0 0 20px rgba(255, 107, 107, 0.2);
+}
+
+/* New Year theme */
+[data-theme="new_year"] {
+  --color-border: #2A2A3A;
+}
+
+[data-theme="new_year"] .card {
+  border-color: rgba(255, 215, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 215, 0, 0.05);
+}
+
+[data-theme="new_year"] .btn-primary {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #0A0A14;
+  box-shadow: 0 4px 14px -3px rgba(255, 215, 0, 0.4);
+}
+
+[data-theme="new_year"] .page-header {
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+/* Gryffindor theme */
+[data-theme="gryffindor"] {
+  --color-border: #3A1515;
+}
+
+[data-theme="gryffindor"] .card {
+  border-color: rgba(211, 166, 37, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(211, 166, 37, 0.05);
+}
+
+[data-theme="gryffindor"] .btn-primary {
+  background: linear-gradient(135deg, #740001, #AE0001);
+  box-shadow: 0 4px 14px -3px rgba(174, 0, 1, 0.5);
+}
+
+[data-theme="gryffindor"] .page-header {
+  text-shadow: 0 0 20px rgba(211, 166, 37, 0.3);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="gryffindor"] .text-gradient {
+  background: linear-gradient(135deg, #D3A625, #AE0001);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Slytherin theme */
+[data-theme="slytherin"] {
+  --color-border: #1A2F1A;
+}
+
+[data-theme="slytherin"] .card {
+  border-color: rgba(46, 139, 87, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(46, 139, 87, 0.05);
+}
+
+[data-theme="slytherin"] .btn-primary {
+  background: linear-gradient(135deg, #1A472A, #2E8B57);
+  box-shadow: 0 4px 14px -3px rgba(26, 71, 42, 0.5);
+}
+
+[data-theme="slytherin"] .page-header {
+  text-shadow: 0 0 20px rgba(46, 139, 87, 0.3);
+  letter-spacing: 0.03em;
+}
+
+[data-theme="slytherin"] .text-gradient {
+  background: linear-gradient(135deg, #2E8B57, #C0C0C0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Anniversary theme */
+[data-theme="anniversary"] {
+  --color-border: #E8D9C0;
+}
+
+[data-theme="anniversary"] .card {
+  border-color: rgba(201, 162, 39, 0.2);
+  box-shadow: 0 1px 8px rgba(201, 162, 39, 0.08);
+}
+
+[data-theme="anniversary"] .btn-primary {
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #2C1810;
+  box-shadow: 0 4px 14px -3px rgba(201, 162, 39, 0.4);
+}
+
+[data-theme="anniversary"] .page-header {
+  text-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+}
+
+/* Vacation Ski theme */
+[data-theme="vacation_ski"] {
+  --color-border: #D0E4F0;
+}
+
+[data-theme="vacation_ski"] .card {
+  border-color: rgba(165, 216, 255, 0.3);
+  box-shadow: 0 1px 8px rgba(165, 216, 255, 0.1);
+}
+
+[data-theme="vacation_ski"] .btn-primary {
+  background: linear-gradient(135deg, #4DABF7, #A5D8FF);
+  color: #1A365D;
+  box-shadow: 0 4px 14px -3px rgba(77, 171, 247, 0.3);
+}
+
+/* Vacation Beach theme */
+[data-theme="vacation_beach"] {
+  --color-border: #B2EBF2;
+}
+
+[data-theme="vacation_beach"] .card {
+  border-color: rgba(64, 224, 208, 0.2);
+  box-shadow: 0 1px 8px rgba(64, 224, 208, 0.08);
+}
+
+[data-theme="vacation_beach"] .btn-primary {
+  background: linear-gradient(135deg, #40E0D0, #48D1CC);
+  color: #1A365D;
+  box-shadow: 0 4px 14px -3px rgba(64, 224, 208, 0.3);
+}
+
+[data-theme="vacation_beach"] .page-header {
+  letter-spacing: 0.02em;
+}
+
+/* ==========================================
+   DARK THEME OVERRIDES (for dark backgrounds)
+   ========================================== */
+   
+[data-theme="christmas"],
+[data-theme="new_year"],
+[data-theme="gryffindor"],
+[data-theme="slytherin"] {
+  color-scheme: dark;
+}
+
+[data-theme="christmas"] .glass,
+[data-theme="new_year"] .glass,
+[data-theme="gryffindor"] .glass,
+[data-theme="slytherin"] .glass {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="christmas"] .skeleton,
+[data-theme="new_year"] .skeleton,
+[data-theme="gryffindor"] .skeleton,
+[data-theme="slytherin"] .skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+}
+
+[data-theme="christmas"] ::-webkit-scrollbar-thumb,
+[data-theme="new_year"] ::-webkit-scrollbar-thumb,
+[data-theme="gryffindor"] ::-webkit-scrollbar-thumb,
+[data-theme="slytherin"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ==========================================
+   RESPONSIVE — reduce effects on mobile
+   ========================================== */
+
+@media (max-width: 768px) {
+  .christmas-tree {
+    font-size: 50px;
+    bottom: 70px;
+    right: 10px;
+  }
+  
+  .christmas-gifts {
+    right: 70px;
+    bottom: 70px;
+  }
+  
+  .gift-box-1 { font-size: 20px; }
+  .gift-box-2 { font-size: 16px; }
+  .gift-box-3 { font-size: 14px; }
+  
+  .golden-rings {
+    bottom: 80px;
+    right: 15px;
+  }
+  
+  .golden-ring {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Reduce particle count on low-power devices */
+@media (prefers-reduced-motion: reduce) {
+  .theme-effects-container {
+    display: none;
+  }
+}

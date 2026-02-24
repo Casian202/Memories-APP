@@ -33,17 +33,40 @@ class SurpriseBase(BaseModel):
     reveal_time: Optional[time] = None
     reveal_clicks: int = Field(default=1, ge=1, le=100)
     click_cooldown: int = Field(default=500, ge=100, le=5000)
+    
+    @validator('reveal_date', pre=True)
+    def clean_reveal_date(cls, v):
+        """Convert empty string to None for optional date field."""
+        if v == '':
+            return None
+        return v
+    
+    @validator('reveal_time', pre=True)
+    def clean_reveal_time_base(cls, v):
+        """Convert empty string to None for optional time field."""
+        if v == '':
+            return None
+        return v
 
 
 class SurpriseCreate(SurpriseBase):
     """Schema for creating a surprise."""
     to_user_id: Optional[int] = None
     
-    @validator('reveal_date', always=True)
+    @validator('reveal_date', pre=True, always=True)
     def validate_reveal_conditions(cls, v, values):
+        # Convert empty string to None
+        if v == '' or v is None:
+            v = None
         reveal_type = values.get('reveal_type')
         if reveal_type in [RevealType.DATE, RevealType.BOTH] and not v:
             raise ValueError('reveal_date este necesar când reveal_type este "date" sau "both"')
+        return v
+    
+    @validator('reveal_time', pre=True, always=True)
+    def clean_reveal_time(cls, v):
+        if v == '' or v is None:
+            return None
         return v
 
 

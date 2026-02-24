@@ -14,6 +14,7 @@ from app.routers import api_router
 from app.seeds.themes import seed_themes
 from app.services.user_json_service import UserJSONService
 from app.services.auth_service import AuthService
+from sqlalchemy import text
 
 
 @asynccontextmanager
@@ -26,6 +27,26 @@ async def lifespan(app: FastAPI):
     print("Initializing database...")
     await init_db()
     print("Database initialized.")
+
+    # Run migrations for new columns
+    print("Running migrations...")
+    async with engine.begin() as conn:
+        # Add background_image column to themes if not exists
+        try:
+            await conn.execute(text("SELECT background_image FROM themes LIMIT 1"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE themes ADD COLUMN background_image VARCHAR(500)"))
+            print("Added background_image column to themes table")
+        # Add notification_dismissed column to surprises if not exists
+        try:
+            await conn.execute(text("SELECT notification_dismissed FROM surprises LIMIT 1"))
+            # Fix any NULL values from initial migration
+            await conn.execute(text("UPDATE surprises SET notification_dismissed = 0 WHERE notification_dismissed IS NULL"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE surprises ADD COLUMN notification_dismissed BOOLEAN DEFAULT 0"))
+            await conn.execute(text("UPDATE surprises SET notification_dismissed = 0 WHERE notification_dismissed IS NULL"))
+            print("Added notification_dismissed column to surprises table")
+    print("Migrations complete.")
 
     # Initialize JSON user storage
     print("Initializing user storage...")
@@ -81,6 +102,8 @@ app.include_router(api_router, prefix="/api")
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "events"), exist_ok=True)
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "surprises"), exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "coming_soon"), exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "themes"), exist_ok=True)
 os.makedirs(settings.BACKUP_DIR, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

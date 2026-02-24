@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Calendar, MapPin, Clock, Image, Plus, Trash2, Play, X } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Clock, Image, Plus, Trash2, Play, X, Star } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -57,7 +57,21 @@ export default function EventDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['photos', id])
+      queryClient.invalidateQueries(['event', id])
       toast.success('Poza a fost ștearsă')
+    }
+  })
+
+  const setCoverMutation = useMutation({
+    mutationFn: async (photoId) => {
+      await api.put(`/events/${id}/cover/${photoId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['event', id])
+      toast.success('Poza de copertă a fost actualizată!')
+    },
+    onError: () => {
+      toast.error('Eroare la setarea pozei de copertă')
     }
   })
 
@@ -90,30 +104,63 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('/events')}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1">
-          <h1 className="page-header">{event.title}</h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              {format(new Date(event.event_date), 'd MMMM yyyy', { locale: ro })}
-            </div>
-            {event.location && (
+      {/* Cover Photo */}
+      {event.cover_photo ? (
+        <div className="relative h-48 sm:h-64 md:h-72 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 rounded-b-2xl overflow-hidden">
+          <img
+            src={`/photos/${event.cover_photo.file_path}`}
+            alt={event.title}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+            <button
+              onClick={() => navigate('/events')}
+              className="absolute top-4 left-4 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center backdrop-blur-sm"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">{event.title}</h1>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-white/80 mt-1">
               <div className="flex items-center gap-1">
-                <MapPin className="w-4 h-4" />
-                {event.location}
+                <Calendar className="w-4 h-4" />
+                {format(new Date(event.event_date), 'd MMMM yyyy', { locale: ro })}
               </div>
-            )}
+              {event.location && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {event.location}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Header without cover photo */
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/events')}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1">
+            <h1 className="page-header">{event.title}</h1>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+              <div className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                {format(new Date(event.event_date), 'd MMMM yyyy', { locale: ro })}
+              </div>
+              {event.location && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {event.location}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Description */}
       {event.description && (
@@ -142,7 +189,7 @@ export default function EventDetailPage() {
 
         {/* Upload Area */}
         {isAdmin() && (
-          <label className="card border-2 border-dashed border-gray-300 hover:border-primary cursor-pointer transition-colors">
+          <label className="block border-2 border-dashed border-gray-300 hover:border-primary rounded-xl cursor-pointer transition-colors bg-card/50">
             <input
               type="file"
               multiple
@@ -151,13 +198,13 @@ export default function EventDetailPage() {
               onChange={handleFileChange}
               disabled={uploadMutation.isPending}
             />
-            <div className="flex flex-col items-center py-8 text-gray-500">
+            <div className="flex flex-col items-center py-6 text-gray-500">
               {uploadMutation.isPending ? (
                 <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
                   <Plus className="w-8 h-8 mb-2" />
-                  <span>Apasă pentru a adăuga poze</span>
+                  <span className="text-sm">Apasă pentru a adăuga poze</span>
                 </>
               )}
             </div>
@@ -190,17 +237,35 @@ export default function EventDetailPage() {
                     setShowSlideshow(true)
                   }}
                 />
+                {/* Cover badge */}
+                {event?.cover_photo_id === photo.id && (
+                  <div className="absolute top-2 left-2 px-2 py-1 bg-primary text-white text-xs rounded-full flex items-center gap-1 shadow-md">
+                    <Star className="w-3 h-3 fill-current" />
+                    Copertă
+                  </div>
+                )}
                 {isAdmin() && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Ești sigur că vrei să ștergi această poză?')) {
-                        deletePhotoMutation.mutate(photo.id)
-                      }
-                    }}
-                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {event?.cover_photo_id !== photo.id && (
+                      <button
+                        onClick={() => setCoverMutation.mutate(photo.id)}
+                        className="p-2 bg-primary/90 text-white rounded-full hover:bg-primary transition-colors shadow-md"
+                        title="Setează ca copertă"
+                      >
+                        <Star className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (confirm('Ești sigur că vrei să ștergi această poză?')) {
+                          deletePhotoMutation.mutate(photo.id)
+                        }
+                      }}
+                      className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </motion.div>
             ))}

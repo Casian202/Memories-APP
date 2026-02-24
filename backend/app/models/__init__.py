@@ -9,6 +9,7 @@ from app.models.surprise import Surprise
 from app.models.motivation import Motivation
 from app.models.message import DailyMessage
 from app.models.theme import Theme, AppSetting, AuditLog, Session
+from app.models.coming_soon import ComingSoonPage, ComingSoonPhoto, ComingSoonQuote
 
 __all__ = [
     "User",
@@ -23,4 +24,7 @@ __all__ = [
     "AppSetting",
     "AuditLog",
     "Session",
+    "ComingSoonPage",
+    "ComingSoonPhoto",
+    "ComingSoonQuote",
 ]

@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import SurprisesPage from './pages/SurprisesPage'
+import ComingSoonPage from './pages/ComingSoonPage'
 import MotivationsPage from './pages/MotivationsPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="events" element={<EventsPage />} />
         <Route path="events/:id" element={<EventDetailPage />} />
         <Route path="surprises" element={<SurprisesPage />} />
+        <Route path="coming-soon" element={<ComingSoonPage />} />
         <Route path="motivations" element={<MotivationsPage />} />
         <Route path="admin" element={
           <ProtectedRoute adminOnly>

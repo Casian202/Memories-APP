@@ -1,11 +1,15 @@
 """
 Theme routes.
 """
+import os
+import uuid
+import shutil
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.theme import Theme
@@ -14,6 +18,9 @@ from app.services.theme_service import ThemeService
 from app.utils.security import get_current_user, get_admin_user
 
 router = APIRouter()
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_BG_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 @router.get("", response_model=List[ThemeResponse])
@@ -162,3 +169,94 @@ async def delete_custom_theme(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.post("/{theme_id}/background")
+async def upload_theme_background(
+    theme_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload a background image for a theme (admin only)."""
+    # Validate theme exists
+    theme = await ThemeService.get_theme_by_id(db, theme_id)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tema nu a fost găsită"
+        )
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tip de fișier neacceptat. Acceptăm: JPEG, PNG, WebP, GIF"
+        )
+    
+    # Validate file size
+    contents = await file.read()
+    if len(contents) > MAX_BG_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Imaginea depășește limita de 10MB"
+        )
+    
+    # Delete old background image if exists
+    if theme.background_image:
+        old_path = os.path.join(settings.UPLOAD_DIR, theme.background_image.lstrip("/"))
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1] or ".jpg"
+    filename = f"{theme.slug}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(settings.UPLOAD_DIR, "themes", filename)
+    
+    # Save file
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    
+    # Update theme record
+    theme.background_image = f"themes/{filename}"
+    await db.commit()
+    await db.refresh(theme)
+    
+    return {
+        "message": "Imaginea de fundal a fost încărcată",
+        "background_image": theme.background_image
+    }
+
+
+@router.delete("/{theme_id}/background")
+async def delete_theme_background(
+    theme_id: int,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete the background image for a theme (admin only)."""
+    theme = await ThemeService.get_theme_by_id(db, theme_id)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tema nu a fost găsită"
+        )
+    
+    if not theme.background_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tema nu are imagine de fundal"
+        )
+    
+    # Delete file from disk
+    file_path = os.path.join(settings.UPLOAD_DIR, theme.background_image.lstrip("/"))
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Clear database field
+    theme.background_image = None
+    await db.commit()
+    await db.refresh(theme)
+    
+    return {"message": "Imaginea de fundal a fost ștearsă"}

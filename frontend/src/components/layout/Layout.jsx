@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import MobileNav from './MobileNav'
+import ThemeEffects from '../ThemeEffects'
+import NotificationPopup from '../NotificationPopup'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Layout() {
@@ -12,6 +14,12 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Theme ambient effects */}
+      <ThemeEffects />
+
+      {/* Notification popups (motivations + surprises) */}
+      <NotificationPopup />
+
       {/* Desktop Sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <Sidebar />

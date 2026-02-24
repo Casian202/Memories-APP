@@ -43,6 +43,9 @@ class Theme(Base):
     # Event triggers
     trigger_event_type = Column(String(50), nullable=True)  # birthday_her, birthday_him, anniversary, valentine, christmas, new_year, vacation_ski, vacation_beach
     
+    # Background image
+    background_image = Column(String(500), nullable=True)  # path to uploaded bg image
+    
     # Metadata
     preview_image = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=False)

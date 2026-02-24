@@ -31,6 +31,7 @@ class Surprise(Base):
     # Status
     is_revealed = Column(Boolean, default=False)
     revealed_at = Column(DateTime, nullable=True)
+    notification_dismissed = Column(Boolean, default=False)
     
     # Security
     click_cooldown = Column(Integer, default=500)  # ms between clicks

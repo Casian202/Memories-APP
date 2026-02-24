@@ -86,6 +86,7 @@ class ThemeResponse(ThemeBase):
     """Schema for theme response."""
     id: int
     preview_image: Optional[str]
+    background_image: Optional[str] = None
     is_active: bool
     is_system: bool
     created_at: datetime
