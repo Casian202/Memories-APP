@@ -1,5 +1,5 @@
 """
-Image processing utilities.
+Image and video processing utilities.
 """
 import os
 import uuid
@@ -12,12 +12,24 @@ from app.config import settings
 
 
 # Allowed image types
-ALLOWED_TYPES = {
+ALLOWED_IMAGE_TYPES = {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/gif": "gif",
     "image/webp": "webp",
 }
+
+# Allowed video types
+ALLOWED_VIDEO_TYPES = {
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+    "video/x-msvideo": "avi",
+    "video/x-matroska": "mkv",
+}
+
+# Combined allowed types
+ALLOWED_TYPES = {**ALLOWED_IMAGE_TYPES, **ALLOWED_VIDEO_TYPES}
 
 # Maximum dimensions
 MAX_WIDTH = 1920
@@ -27,8 +39,23 @@ MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
 
 
 def validate_image(content_type: str) -> bool:
-    """Check if content type is allowed."""
+    """Check if content type is an allowed image."""
+    return content_type in ALLOWED_IMAGE_TYPES
+
+
+def validate_video(content_type: str) -> bool:
+    """Check if content type is an allowed video."""
+    return content_type in ALLOWED_VIDEO_TYPES
+
+
+def validate_media(content_type: str) -> bool:
+    """Check if content type is an allowed image or video."""
     return content_type in ALLOWED_TYPES
+
+
+def is_video(content_type: str) -> bool:
+    """Check if content type is a video."""
+    return content_type in ALLOWED_VIDEO_TYPES
 
 
 def generate_filename(original_filename: str) -> str:
@@ -127,6 +154,27 @@ async def save_image(
     return os.path.join(subfolder, filename) if subfolder else filename
 
 
+async def save_video(
+    video_data: bytes,
+    filename: str,
+    subfolder: str = ""
+) -> str:
+    """
+    Save video to the upload directory.
+    Returns the file path relative to upload directory.
+    """
+    upload_dir = settings.UPLOAD_DIR
+    if subfolder:
+        upload_dir = os.path.join(upload_dir, subfolder)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_path = os.path.join(upload_dir, filename)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(video_data)
+
+    return os.path.join(subfolder, filename) if subfolder else filename
+
+
 def get_image_url(file_path: str) -> str:
-    """Get the URL for an image file."""
+    """Get the URL for an image or video file."""
     return f"/photos/{file_path}"

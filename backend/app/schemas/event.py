@@ -25,13 +25,14 @@ class EventStatus(str, Enum):
 
 
 class PhotoResponse(BaseModel):
-    """Schema for photo response."""
+    """Schema for photo/video response."""
     id: int
     filename: str
     original_filename: Optional[str]
     file_path: str
     file_size: Optional[int]
     mime_type: Optional[str]
+    media_type: Optional[str] = "image"
     width: Optional[int]
     height: Optional[int]
     is_cover: bool

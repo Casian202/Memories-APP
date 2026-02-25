@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Calendar, MapPin, Clock, Image, Plus, Trash2, Play, X, Star } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Clock, Image, Plus, Trash2, Play, X, Star, Video, Film } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -38,16 +38,17 @@ export default function EventDetailPage() {
       const formData = new FormData()
       files.forEach(file => formData.append('files', file))
       const response = await api.post(`/events/${id}/photos`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000, // 5 min timeout for large video uploads
       })
       return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['photos', id])
-      toast.success('Pozele au fost încărcate cu succes!')
+      toast.success('Fișierele au fost încărcate cu succes!')
     },
     onError: () => {
-      toast.error('Eroare la încărcarea pozelor')
+      toast.error('Eroare la încărcarea fișierelor')
     }
   })
 
@@ -58,7 +59,7 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries(['photos', id])
       queryClient.invalidateQueries(['event', id])
-      toast.success('Poza a fost ștearsă')
+      toast.success('Fișierul a fost șters')
     }
   })
 
@@ -169,12 +170,17 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* Photos Section */}
+      {/* Media Section (Photos + Videos) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text flex items-center gap-2">
             <Image className="w-5 h-5" />
-            Poze ({photos?.length || 0})
+            Media ({photos?.length || 0})
+            {photos?.length > 0 && (
+              <span className="text-xs font-normal text-gray-400">
+                {photos.filter(p => p.media_type !== 'video').length} poze, {photos.filter(p => p.media_type === 'video').length} videoclipuri
+              </span>
+            )}
           </h2>
           {photos?.length > 0 && (
             <button
@@ -193,7 +199,7 @@ export default function EventDetailPage() {
             <input
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
               className="hidden"
               onChange={handleFileChange}
               disabled={uploadMutation.isPending}
@@ -204,7 +210,8 @@ export default function EventDetailPage() {
               ) : (
                 <>
                   <Plus className="w-8 h-8 mb-2" />
-                  <span className="text-sm">Apasă pentru a adăuga poze</span>
+                  <span className="text-sm">Apasă pentru a adăuga poze sau videoclipuri</span>
+                  <span className="text-xs text-gray-400 mt-1">Maxim 200MB per fișier</span>
                 </>
               )}
             </div>
@@ -228,15 +235,43 @@ export default function EventDetailPage() {
                 transition={{ delay: index * 0.05 }}
                 className="relative aspect-square group"
               >
-                <img
-                  src={`/photos/${photo.file_path}`}
-                  alt=""
-                  className="w-full h-full object-cover rounded-lg cursor-pointer"
-                  onClick={() => {
-                    setCurrentPhotoIndex(index)
-                    setShowSlideshow(true)
-                  }}
-                />
+                {photo.media_type === 'video' ? (
+                  <div
+                    className="w-full h-full rounded-lg cursor-pointer relative bg-black"
+                    onClick={() => {
+                      setCurrentPhotoIndex(index)
+                      setShowSlideshow(true)
+                    }}
+                  >
+                    <video
+                      src={`/photos/${photo.file_path}`}
+                      className="w-full h-full object-cover rounded-lg"
+                      muted
+                      preload="metadata"
+                    />
+                    {/* Video play overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                      <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                        <Play className="w-6 h-6 text-gray-800 ml-0.5" />
+                      </div>
+                    </div>
+                    {/* Video badge */}
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded flex items-center gap-1">
+                      <Film className="w-3 h-3" />
+                      Video
+                    </div>
+                  </div>
+                ) : (
+                  <img
+                    src={`/photos/${photo.file_path}`}
+                    alt=""
+                    className="w-full h-full object-cover rounded-lg cursor-pointer"
+                    onClick={() => {
+                      setCurrentPhotoIndex(index)
+                      setShowSlideshow(true)
+                    }}
+                  />
+                )}
                 {/* Cover badge */}
                 {event?.cover_photo_id === photo.id && (
                   <div className="absolute top-2 left-2 px-2 py-1 bg-primary text-white text-xs rounded-full flex items-center gap-1 shadow-md">
@@ -257,7 +292,7 @@ export default function EventDetailPage() {
                     )}
                     <button
                       onClick={() => {
-                        if (confirm('Ești sigur că vrei să ștergi această poză?')) {
+                        if (confirm('Ești sigur că vrei să ștergi acest fișier?')) {
                           deletePhotoMutation.mutate(photo.id)
                         }
                       }}
@@ -273,7 +308,7 @@ export default function EventDetailPage() {
         ) : (
           <div className="card text-center py-8 text-gray-500">
             <Image className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>Nicio poză încă</p>
+            <p>Nicio poză sau videoclip încă</p>
           </div>
         )}
       </div>
@@ -304,6 +339,9 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
     setCurrentIndex(i => (i < photos.length - 1 ? i + 1 : 0))
   }
 
+  const currentMedia = photos[currentIndex]
+  const isCurrentVideo = currentMedia?.media_type === 'video'
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -320,25 +358,37 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
 
       <button
         onClick={handlePrev}
-        className="absolute left-4 p-2 text-white hover:bg-white/20 rounded-full"
+        className="absolute left-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
       >
         <ArrowLeft className="w-6 h-6" />
       </button>
 
-      <img
-        src={`/photos/${photos[currentIndex].file_path}`}
-        alt=""
-        className="max-w-full max-h-full object-contain"
-      />
+      {isCurrentVideo ? (
+        <video
+          key={currentMedia.id}
+          src={`/photos/${currentMedia.file_path}`}
+          className="max-w-full max-h-full object-contain"
+          controls
+          autoPlay
+          playsInline
+        />
+      ) : (
+        <img
+          src={`/photos/${currentMedia.file_path}`}
+          alt=""
+          className="max-w-full max-h-full object-contain"
+        />
+      )}
 
       <button
         onClick={handleNext}
-        className="absolute right-4 p-2 text-white hover:bg-white/20 rounded-full"
+        className="absolute right-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
       >
         <ArrowLeft className="w-6 h-6 rotate-180" />
       </button>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-sm">
+        {isCurrentVideo && <Film className="w-4 h-4" />}
         {currentIndex + 1} / {photos.length}
       </div>
     </motion.div>

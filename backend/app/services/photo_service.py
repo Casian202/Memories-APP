@@ -11,9 +11,12 @@ from fastapi import UploadFile, HTTPException, status
 from app.models.photo import Photo, Collage
 from app.utils.image_processor import (
     validate_image,
+    validate_media,
+    is_video,
     generate_filename,
     process_image,
-    save_image
+    save_image,
+    save_video
 )
 from app.config import settings
 
@@ -31,9 +34,11 @@ class PhotoService:
         """Upload multiple photos for an event."""
         uploaded_photos = []
         
+        max_size = settings.MAX_UPLOAD_SIZE * 1024 * 1024
+
         for file in files:
-            # Validate file type
-            if not validate_image(file.content_type):
+            # Validate file type (images and videos)
+            if not validate_media(file.content_type):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Tip fișier nepermis: {file.content_type}"
@@ -42,44 +47,62 @@ class PhotoService:
             # Read file content
             content = await file.read()
             
-            # Check file size (max 50MB before processing)
-            if len(content) > 50 * 1024 * 1024:
+            # Check file size
+            if len(content) > max_size:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Fișier prea mare. Maxim 50MB"
+                    detail=f"Fișier prea mare. Maxim {settings.MAX_UPLOAD_SIZE}MB"
                 )
             
-            # Process image
-            try:
-                processed, width, height = await process_image(
-                    content,
-                    file.filename
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Eroare la procesarea imaginii: {str(e)}"
-                )
-            
-            # Generate filename and save
+            # Generate filename and subfolder
             filename = generate_filename(file.filename)
             subfolder = f"events/{event_id}"
             
-            file_path = await save_image(processed, filename, subfolder)
-            
-            # Create photo record
-            photo = Photo(
-                event_id=event_id,
-                filename=filename,
-                original_filename=file.filename,
-                file_path=file_path,
-                file_size=len(processed),
-                mime_type="image/jpeg",
-                width=width,
-                height=height,
-                is_cover=False,
-                uploaded_by=user_id
-            )
+            if is_video(file.content_type):
+                # Save video directly (no processing)
+                file_path = await save_video(content, filename, subfolder)
+                
+                photo = Photo(
+                    event_id=event_id,
+                    filename=filename,
+                    original_filename=file.filename,
+                    file_path=file_path,
+                    file_size=len(content),
+                    mime_type=file.content_type,
+                    media_type="video",
+                    width=None,
+                    height=None,
+                    is_cover=False,
+                    uploaded_by=user_id
+                )
+            else:
+                # Process image (resize/compress)
+                try:
+                    processed, width, height = await process_image(
+                        content,
+                        file.filename
+                    )
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Eroare la procesarea imaginii: {str(e)}"
+                    )
+                
+                file_path = await save_image(processed, filename, subfolder)
+                
+                photo = Photo(
+                    event_id=event_id,
+                    filename=filename,
+                    original_filename=file.filename,
+                    file_path=file_path,
+                    file_size=len(processed),
+                    mime_type="image/jpeg",
+                    media_type="image",
+                    width=width,
+                    height=height,
+                    is_cover=False,
+                    uploaded_by=user_id
+                )
             
             db.add(photo)
             uploaded_photos.append(photo)

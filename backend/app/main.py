@@ -46,6 +46,13 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("ALTER TABLE surprises ADD COLUMN notification_dismissed BOOLEAN DEFAULT 0"))
             await conn.execute(text("UPDATE surprises SET notification_dismissed = 0 WHERE notification_dismissed IS NULL"))
             print("Added notification_dismissed column to surprises table")
+        # Add media_type column to photos if not exists
+        try:
+            await conn.execute(text("SELECT media_type FROM photos LIMIT 1"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE photos ADD COLUMN media_type VARCHAR(10) DEFAULT 'image'"))
+            await conn.execute(text("UPDATE photos SET media_type = 'image' WHERE media_type IS NULL"))
+            print("Added media_type column to photos table")
     print("Migrations complete.")
 
     # Initialize JSON user storage

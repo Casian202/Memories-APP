@@ -19,6 +19,7 @@ class Photo(Base):
     file_path = Column(String(500), nullable=False)
     file_size = Column(Integer, nullable=True)
     mime_type = Column(String(50), nullable=True)
+    media_type = Column(String(10), default="image")  # "image" or "video"
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     is_cover = Column(Boolean, default=False)

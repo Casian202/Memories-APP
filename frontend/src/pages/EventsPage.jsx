@@ -311,7 +311,7 @@ function EventCard({ event }) {
              event.status === 'completed' ? 'Finalizat' : 'Anulat'}
           </span>
           <span className="text-xs text-gray-400">
-            {event.photo_count || 0} poze
+            {event.photo_count || 0} media
           </span>
         </div>
       </div>
