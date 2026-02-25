@@ -267,14 +267,25 @@ function EventCard({ event }) {
   return (
     <Link to={`/events/${event.id}`}>
       <div className="card card-hover group">
-        {/* Cover Image */}
+        {/* Cover Image/Video */}
         <div className="relative h-32 -mx-4 -mt-4 mb-3 rounded-t-lg overflow-hidden bg-gradient-to-br from-primary/20 to-secondary/20">
           {event.cover_photo ? (
-            <img
-              src={`/photos/${event.cover_photo.file_path}`}
-              alt={event.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
+            event.cover_photo.media_type === 'video' ? (
+              <video
+                src={`/photos/${event.cover_photo.file_path}`}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                src={`/photos/${event.cover_photo.file_path}`}
+                alt={event.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            )
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Calendar className="w-12 h-12 text-primary/40" />
@@ -303,12 +314,12 @@ function EventCard({ event }) {
           <span className={`text-xs px-2 py-1 rounded-full ${
             event.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
             event.status === 'ongoing' ? 'bg-green-100 text-green-700' :
-            event.status === 'completed' ? 'bg-gray-100 text-gray-700' :
+            event.status === 'completed' ? 'bg-purple-100 text-purple-700' :
             'bg-red-100 text-red-700'
           }`}>
             {event.status === 'upcoming' ? 'Viitor' :
              event.status === 'ongoing' ? 'În desfășurare' :
-             event.status === 'completed' ? 'Finalizat' : 'Anulat'}
+             event.status === 'completed' ? 'Trecutul cu tine' : 'Anulat'}
           </span>
           <span className="text-xs text-gray-400">
             {event.photo_count || 0} media

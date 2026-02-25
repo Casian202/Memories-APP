@@ -16,7 +16,8 @@ from app.utils.image_processor import (
     generate_filename,
     process_image,
     save_image,
-    save_video
+    save_video,
+    save_video_streaming
 )
 from app.config import settings
 
@@ -44,30 +45,28 @@ class PhotoService:
                     detail=f"Tip fișier nepermis: {file.content_type}"
                 )
             
-            # Read file content
-            content = await file.read()
-            
-            # Check file size
-            if len(content) > max_size:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Fișier prea mare. Maxim {settings.MAX_UPLOAD_SIZE}MB"
-                )
-            
             # Generate filename and subfolder
             filename = generate_filename(file.filename)
             subfolder = f"events/{event_id}"
             
             if is_video(file.content_type):
-                # Save video directly (no processing)
-                file_path = await save_video(content, filename, subfolder)
+                # Stream video directly to disk (no memory buffering)
+                try:
+                    file_path, file_size = await save_video_streaming(
+                        file, filename, subfolder, max_size
+                    )
+                except ValueError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=str(e)
+                    )
                 
                 photo = Photo(
                     event_id=event_id,
                     filename=filename,
                     original_filename=file.filename,
                     file_path=file_path,
-                    file_size=len(content),
+                    file_size=file_size,
                     mime_type=file.content_type,
                     media_type="video",
                     width=None,
@@ -76,7 +75,15 @@ class PhotoService:
                     uploaded_by=user_id
                 )
             else:
-                # Process image (resize/compress)
+                # Read image content into memory for processing
+                content = await file.read()
+                
+                # Check file size
+                if len(content) > max_size:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Fișier prea mare. Maxim {settings.MAX_UPLOAD_SIZE}MB"
+                    )
                 try:
                     processed, width, height = await process_image(
                         content,

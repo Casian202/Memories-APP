@@ -56,6 +56,36 @@ export default function DashboardPage() {
     retry: 1,
   })
 
+  // Fetch all events count for stats
+  const { data: allEventsData } = useQuery({
+    queryKey: ['events', 'all-count'],
+    queryFn: async () => {
+      const response = await api.get('/events?per_page=1')
+      return response.data
+    },
+    retry: 1,
+  })
+
+  // Fetch surprises count
+  const { data: receivedSurprises } = useQuery({
+    queryKey: ['surprises', 'received'],
+    queryFn: async () => {
+      const response = await api.get('/surprises/received')
+      return response.data
+    },
+    retry: 1,
+  })
+
+  // Fetch motivations count
+  const { data: receivedMotivations } = useQuery({
+    queryKey: ['motivations', 'received'],
+    queryFn: async () => {
+      const response = await api.get('/motivations/received')
+      return response.data
+    },
+    retry: 1,
+  })
+
   const { data: pendingMessages } = useQuery({
     queryKey: ['messages', 'pending'],
     queryFn: async () => {
@@ -151,9 +181,9 @@ export default function DashboardPage() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatCard icon={Calendar} label="Evenimente" value={upcomingEvents?.length || 0} loading={eventsLoading} />
-        <StatCard icon={Gift} label="Surprize" value={0} loading={false} />
-        <StatCard icon={Heart} label="Motivații" value={0} loading={false} />
+        <StatCard icon={Calendar} label="Evenimente" value={allEventsData?.total || 0} loading={eventsLoading} />
+        <StatCard icon={Gift} label="Surprize" value={receivedSurprises?.length || 0} loading={false} />
+        <StatCard icon={Heart} label="Motivații" value={receivedMotivations?.length || 0} loading={false} />
         <StatCard icon={Users} label="Partener" value="Activ" loading={false} />
       </div>
 

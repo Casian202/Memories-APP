@@ -16,6 +16,24 @@ class EventService:
     """Service for managing events."""
     
     @staticmethod
+    async def _auto_update_statuses(db: AsyncSession) -> None:
+        """Auto-update event statuses based on dates.
+        Events with event_date in the past and status 'upcoming' become 'completed'.
+        """
+        today = date.today()
+        query = select(Event).where(
+            Event.event_date < today,
+            Event.status == EventStatus.UPCOMING.value
+        )
+        result = await db.execute(query)
+        stale_events = result.scalars().all()
+        
+        if stale_events:
+            for event in stale_events:
+                event.status = EventStatus.COMPLETED.value
+            await db.commit()
+    
+    @staticmethod
     async def get_events(
         db: AsyncSession,
         user_id: int,
@@ -26,6 +44,9 @@ class EventService:
         search: Optional[str] = None
     ) -> Tuple[List[Event], int]:
         """Get paginated list of events."""
+        # Auto-update past events
+        await EventService._auto_update_statuses(db)
+        
         query = select(Event).options(selectinload(Event.photos))
         
         # Filters
@@ -75,6 +96,9 @@ class EventService:
         limit: int = 5
     ) -> List[Event]:
         """Get upcoming events for dashboard."""
+        # Auto-update past events first
+        await EventService._auto_update_statuses(db)
+        
         today = date.today()
         
         query = select(Event).options(

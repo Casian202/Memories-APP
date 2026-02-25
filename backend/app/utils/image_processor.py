@@ -4,7 +4,7 @@ Image and video processing utilities.
 import os
 import uuid
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Tuple, Optional
 import aiofiles
 
@@ -79,6 +79,9 @@ async def process_image(
     """
     img = Image.open(BytesIO(image_data))
     
+    # Apply EXIF orientation (fixes phone photo rotation)
+    img = ImageOps.exif_transpose(img)
+    
     # Convert RGBA to RGB for JPEG
     if img.mode in ("RGBA", "LA", "P"):
         background = Image.new("RGB", img.size, (255, 255, 255))
@@ -110,6 +113,9 @@ async def create_thumbnail(
     Create a thumbnail from image data.
     """
     img = Image.open(BytesIO(image_data))
+    
+    # Apply EXIF orientation
+    img = ImageOps.exif_transpose(img)
     
     # Convert RGBA to RGB
     if img.mode in ("RGBA", "LA", "P"):
@@ -173,6 +179,43 @@ async def save_video(
         await f.write(video_data)
 
     return os.path.join(subfolder, filename) if subfolder else filename
+
+
+async def save_video_streaming(
+    upload_file,
+    filename: str,
+    subfolder: str = "",
+    max_size: int = 0
+) -> tuple:
+    """
+    Save video from UploadFile using streaming chunks to avoid memory issues.
+    Returns (relative file path, file size).
+    """
+    upload_dir = settings.UPLOAD_DIR
+    if subfolder:
+        upload_dir = os.path.join(upload_dir, subfolder)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_path = os.path.join(upload_dir, filename)
+    total_size = 0
+    chunk_size = 1024 * 1024  # 1MB chunks
+
+    async with aiofiles.open(file_path, "wb") as f:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if max_size and total_size > max_size:
+                # Clean up partial file
+                await f.close()
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                raise ValueError(f"Fișier prea mare. Maxim {max_size // (1024*1024)}MB")
+            await f.write(chunk)
+
+    rel_path = os.path.join(subfolder, filename) if subfolder else filename
+    return rel_path, total_size
 
 
 def get_image_url(file_path: str) -> str:

@@ -105,14 +105,25 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Cover Photo */}
+      {/* Cover Photo/Video */}
       {event.cover_photo ? (
         <div className="relative h-48 sm:h-64 md:h-72 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 rounded-b-2xl overflow-hidden">
-          <img
-            src={`/photos/${event.cover_photo.file_path}`}
-            alt={event.title}
-            className="w-full h-full object-cover"
-          />
+          {event.cover_photo.media_type === 'video' ? (
+            <video
+              src={`/photos/${event.cover_photo.file_path}`}
+              className="w-full h-full object-cover"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+          ) : (
+            <img
+              src={`/photos/${event.cover_photo.file_path}`}
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
             <button
