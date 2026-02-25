@@ -229,6 +229,110 @@ async def reveal_surprise(
         )
 
 
+@router.post("/{surprise_id}/photo")
+async def upload_surprise_photo(
+    surprise_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload a photo for a surprise (only by the creator)."""
+    surprise = await SurpriseService.get_surprise_by_id(db, surprise_id, current_user.id)
+    if not surprise:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Surpriza nu a fost găsită"
+        )
+    
+    if surprise.from_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nu aveți permisiunea de a modifica această surpriză"
+        )
+    
+    from app.utils.image_processor import validate_image, generate_filename, process_image, save_image
+    import os
+    from app.config import settings
+    
+    if not validate_image(file.content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tip fișier nepermis. Folosiți JPEG, PNG, GIF sau WebP."
+        )
+    
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fișier prea mare. Maxim 50MB."
+        )
+    
+    try:
+        processed, width, height = await process_image(content, file.filename)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Eroare la procesarea imaginii: {str(e)}"
+        )
+    
+    # Delete old photo if exists
+    if surprise.content_path:
+        old_path = os.path.join(settings.UPLOAD_DIR, surprise.content_path)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    
+    filename = generate_filename(file.filename)
+    file_path = await save_image(processed, filename, "surprises")
+    
+    # Update surprise
+    from sqlalchemy import update
+    await db.execute(
+        update(Surprise).where(Surprise.id == surprise_id).values(
+            content_path=file_path,
+            surprise_type="photo"
+        )
+    )
+    await db.commit()
+    
+    return {"message": "Fotografia a fost încărcată", "content_path": file_path}
+
+
+@router.delete("/{surprise_id}/photo")
+async def delete_surprise_photo(
+    surprise_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete the photo from a surprise."""
+    surprise = await SurpriseService.get_surprise_by_id(db, surprise_id, current_user.id)
+    if not surprise:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Surpriza nu a fost găsită"
+        )
+    
+    if surprise.from_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nu aveți permisiunea de a modifica această surpriză"
+        )
+    
+    if surprise.content_path:
+        import os
+        from app.config import settings
+        old_path = os.path.join(settings.UPLOAD_DIR, surprise.content_path)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    
+    from sqlalchemy import update
+    await db.execute(
+        update(Surprise).where(Surprise.id == surprise_id).values(content_path=None)
+    )
+    await db.commit()
+    
+    return {"message": "Fotografia a fost ștearsă"}
+
+
 @router.post("/{surprise_id}/dismiss-notification")
 async def dismiss_surprise_notification(
     surprise_id: int,

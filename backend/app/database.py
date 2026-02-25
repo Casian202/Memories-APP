@@ -41,7 +41,7 @@ async def init_db():
     """Initialize database and create tables."""
     async with engine.begin() as conn:
         # Import all models to ensure they are registered
-        from app.models import user, relationship, event, photo, surprise, motivation, message, theme
+        from app.models import user, relationship, event, photo, surprise, motivation, message, theme, coming_soon
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)

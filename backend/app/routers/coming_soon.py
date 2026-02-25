@@ -70,10 +70,10 @@ async def get_nav_info(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get minimal info for navigation (name to display, is_revealed)."""
+    """Get minimal info for navigation — returns all active pages as a list."""
     info = await ComingSoonService.get_nav_info(db)
     if not info:
-        return None
+        return []
     return info
 
 
@@ -86,7 +86,13 @@ async def get_active_page(
     page = await ComingSoonService.get_active_page(db)
     if not page:
         return None
-    return _page_to_dict(page)
+    result = _page_to_dict(page)
+    # Non-admin users cannot see content of unrevealed pages
+    if not current_user.is_admin and not page.is_revealed:
+        result["photos"] = []
+        result["quotes"] = []
+        result["description"] = None
+    return result
 
 
 @router.get("")
@@ -112,7 +118,13 @@ async def get_page(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pagina nu a fost găsită"
         )
-    return _page_to_dict(page)
+    result = _page_to_dict(page)
+    # Non-admin users cannot see content of unrevealed pages
+    if not current_user.is_admin and not page.is_revealed:
+        result["photos"] = []
+        result["quotes"] = []
+        result["description"] = None
+    return result
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -159,6 +171,25 @@ async def delete_page(
         )
     await ComingSoonService.delete_page(db, page)
     return {"message": "Pagina a fost ștearsă"}
+
+
+@router.post("/{page_id}/toggle-active")
+async def toggle_page_active(
+    page_id: int,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Toggle active status of a Coming Soon page (admin only)."""
+    page = await ComingSoonService.get_page_by_id(db, page_id)
+    if not page:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pagina nu a fost găsită"
+        )
+    from app.schemas.coming_soon import ComingSoonPageUpdate
+    update_data = ComingSoonPageUpdate(is_active=not page.is_active)
+    page = await ComingSoonService.update_page(db, page, update_data)
+    return _page_to_dict(page)
 
 
 # Photo management

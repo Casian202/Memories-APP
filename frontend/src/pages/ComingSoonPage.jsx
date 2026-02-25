@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Clock, Plus, Trash2, X, Image, Quote, Calendar,
@@ -13,13 +14,19 @@ import toast from 'react-hot-toast'
 
 export default function ComingSoonPage() {
   const { isAdmin } = useAuth()
+  const { pageId } = useParams()
   const queryClient = useQueryClient()
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
+  // If pageId is provided, fetch that specific page; otherwise fetch the active page
   const { data: page, isLoading } = useQuery({
-    queryKey: ['coming-soon-active'],
+    queryKey: pageId ? ['coming-soon-page', pageId] : ['coming-soon-active'],
     queryFn: async () => {
+      if (pageId) {
+        const response = await api.get(`/coming-soon/${pageId}`)
+        return response.data
+      }
       const response = await api.get('/coming-soon/active')
       return response.data
     }
@@ -95,41 +102,197 @@ export default function ComingSoonPage() {
         )}
       </AnimatePresence>
 
-      {/* Description */}
-      {page.description && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card text-center"
-        >
-          <p className="text-text text-lg italic whitespace-pre-wrap">
-            {page.description}
-          </p>
-        </motion.div>
-      )}
+      {/* Non-admin unrevealed: show only a beautiful teaser */}
+      {!isAdmin() && !page.is_revealed ? (
+        <ComingSoonTeaser page={page} />
+      ) : (
+        <>
+          {/* Description */}
+          {page.description && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card text-center"
+            >
+              <p className="text-text text-lg italic whitespace-pre-wrap">
+                {page.description}
+              </p>
+            </motion.div>
+          )}
 
-      {/* Photo Slideshow */}
-      {page.photos?.length > 0 && (
-        <PhotoSlideshow photos={page.photos} />
-      )}
+          {/* Photo Slideshow */}
+          {page.photos?.length > 0 && (
+            <PhotoSlideshow photos={page.photos} />
+          )}
 
-      {/* Floating Quotes */}
-      {page.quotes?.length > 0 && (
-        <FloatingQuotes quotes={page.quotes} />
-      )}
+          {/* Floating Quotes */}
+          {page.quotes?.length > 0 && (
+            <FloatingQuotes quotes={page.quotes} />
+          )}
 
-      {/* Empty state if no content */}
-      {(!page.photos?.length && !page.quotes?.length) && (
-        <div className="card text-center py-16">
-          <Sparkles className="w-16 h-16 mx-auto text-primary/30 mb-4" />
-          <p className="text-gray-500 text-lg">
-            {page.is_revealed
-              ? 'Conținutul va fi adăugat în curând...'
-              : 'Ceva special se pregătește...'}
-          </p>
-        </div>
+          {/* Empty state if no content */}
+          {(!page.photos?.length && !page.quotes?.length) && (
+            <div className="card text-center py-16">
+              <Sparkles className="w-16 h-16 mx-auto text-primary/30 mb-4" />
+              <p className="text-gray-500 text-lg">
+                {page.is_revealed
+                  ? 'Conținutul va fi adăugat în curând...'
+                  : 'Ceva special se pregătește...'}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
+  )
+}
+
+// ============ COMING SOON TEASER (non-admin, unrevealed) ============
+function ComingSoonTeaser({ page }) {
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const target = new Date(page.reveal_date)
+  const daysLeft = differenceInDays(target, now)
+  const totalDays = Math.max(1, differenceInDays(target, new Date(page.created_at || Date.now())))
+  const progressPct = Math.min(100, Math.max(0, ((totalDays - daysLeft) / totalDays) * 100))
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, ease: 'easeOut' }}
+      className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4"
+    >
+      {/* Animated mystery icon */}
+      <motion.div
+        animate={{
+          scale: [1, 1.08, 1],
+          rotate: [0, 2, -2, 0],
+        }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        className="relative mb-8"
+      >
+        <div className="w-28 h-28 rounded-full flex items-center justify-center relative"
+          style={{
+            background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.15), rgba(var(--color-secondary-rgb), 0.15))',
+            border: '3px solid rgba(var(--color-primary-rgb), 0.3)',
+          }}
+        >
+          <Clock className="w-14 h-14" style={{ color: 'var(--color-primary)' }} />
+          {/* Pulsing ring */}
+          <motion.div
+            animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute inset-0 rounded-full"
+            style={{ border: '2px solid var(--color-primary)' }}
+          />
+        </div>
+      </motion.div>
+
+      {/* Title */}
+      <motion.h2
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="text-2xl sm:text-3xl font-bold text-text mb-3"
+      >
+        Ceva special se pregătește...
+      </motion.h2>
+
+      {/* Subtitle */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="text-gray-500 mb-8 max-w-md"
+      >
+        Ai răbdare, o surpriză frumoasă te așteaptă! ✨
+      </motion.p>
+
+      {/* Countdown card */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.6 }}
+        className="card max-w-sm w-full py-8 px-6"
+        style={{
+          background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-secondary-rgb), 0.08))',
+          border: '1px solid rgba(var(--color-primary-rgb), 0.2)',
+        }}
+      >
+        {daysLeft > 0 ? (
+          <>
+            <div className="text-5xl sm:text-6xl font-bold mb-2" style={{ color: 'var(--color-primary)' }}>
+              {daysLeft}
+            </div>
+            <div className="text-lg text-text font-medium mb-1">
+              {daysLeft === 1 ? 'zi rămasă' : 'zile rămase'}
+            </div>
+          </>
+        ) : (
+          <>
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            >
+              <Sparkles className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--color-primary)' }} />
+            </motion.div>
+            <div className="text-lg font-bold text-text">
+              Se dezvăluie astăzi! ✨
+            </div>
+          </>
+        )}
+
+        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-gray-500">
+          <Calendar className="w-4 h-4" />
+          <span>
+            {format(target, 'd MMMM yyyy', { locale: ro })}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        {daysLeft > 0 && (
+          <div className="mt-5">
+            <div className="w-full h-2 rounded-full overflow-hidden"
+              style={{ background: 'rgba(var(--color-primary-rgb), 0.1)' }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: 'var(--color-primary)' }}
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 1.5, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Floating sparkles decoration */}
+      <div className="relative mt-6">
+        {[...Array(3)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{
+              y: [-10, 10, -10],
+              opacity: [0.3, 0.7, 0.3],
+            }}
+            transition={{
+              duration: 3 + i,
+              repeat: Infinity,
+              delay: i * 0.7,
+            }}
+            className="inline-block mx-2"
+          >
+            <Sparkles className="w-5 h-5" style={{ color: 'var(--color-primary)', opacity: 0.4 }} />
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
   )
 }
 
@@ -335,6 +498,7 @@ function AdminPanel({ page }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['coming-soon-active'])
+      queryClient.invalidateQueries(['coming-soon-page', String(page.id)])
       queryClient.invalidateQueries(['coming-soon-nav'])
       toast.success('Pagina a fost actualizată!')
       setEditMode(false)
@@ -352,6 +516,7 @@ function AdminPanel({ page }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['coming-soon-active'])
+      queryClient.invalidateQueries(['coming-soon-page', String(page.id)])
       toast.success('Pozele au fost încărcate!')
     },
     onError: () => toast.error('Eroare la încărcarea pozelor')
@@ -363,6 +528,7 @@ function AdminPanel({ page }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['coming-soon-active'])
+      queryClient.invalidateQueries(['coming-soon-page', String(page.id)])
       toast.success('Poza a fost ștearsă')
     }
   })

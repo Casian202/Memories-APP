@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Gift, Plus, Lock, Unlock, Eye, Send, Calendar, X, MousePointerClick, Sparkles, Heart } from 'lucide-react'
+import { Gift, Plus, Lock, Unlock, Eye, Send, Calendar, X, MousePointerClick, Sparkles, Heart, Image as ImageIcon } from 'lucide-react'
 import api from '../services/api'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -412,8 +412,32 @@ function CreateSurpriseModal({ onClose }) {
     reveal_date: '',
     reveal_clicks: 5
   })
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const queryClient = useQueryClient()
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Selectează o imagine validă')
+        return
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error('Imaginea depășește limita de 50MB')
+        return
+      }
+      setPhotoFile(file)
+      setPhotoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const removePhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -425,12 +449,28 @@ function CreateSurpriseModal({ onClose }) {
         ...formData,
         title: formData.title || null,
         reveal_date: formData.reveal_date || null,
+        surprise_type: photoFile ? 'photo' : formData.surprise_type,
       }
       // Remove reveal_date if not needed
       if (formData.reveal_type === 'clicks' && !formData.reveal_date) {
         delete cleanData.reveal_date
       }
-      await api.post('/surprises', cleanData)
+      const response = await api.post('/surprises', cleanData)
+      const surprise = response.data
+
+      // Upload photo if selected
+      if (photoFile && surprise.id) {
+        try {
+          const fd = new FormData()
+          fd.append('file', photoFile)
+          await api.post(`/surprises/${surprise.id}/photo`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+        } catch (photoError) {
+          toast.error('Surpriza creată, dar eroare la încărcarea pozei')
+        }
+      }
+
       toast.success('Surpriza a fost creată!')
       queryClient.invalidateQueries(['surprises'])
       onClose()
@@ -490,6 +530,42 @@ function CreateSurpriseModal({ onClose }) {
               placeholder="Scrie mesajul tău..."
               required
             />
+          </div>
+
+          {/* Optional Photo Upload */}
+          <div>
+            <label className="label">Fotografie (opțional)</label>
+            {photoPreview ? (
+              <div className="relative rounded-lg overflow-hidden">
+                <img src={photoPreview} alt="Preview" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="block border-2 border-dashed rounded-lg cursor-pointer transition-colors hover:border-primary/50"
+                style={{ borderColor: 'rgba(var(--color-text-rgb), 0.2)' }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <ImageIcon className="w-8 h-8" style={{ color: 'var(--color-text)', opacity: 0.4 }} />
+                  <p className="text-sm" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+                    Adaugă o poză care apare la dezvăluire
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--color-text)', opacity: 0.4 }}>
+                    JPEG, PNG, WebP, GIF
+                  </p>
+                </div>
+              </label>
+            )}
           </div>
 
           <div>

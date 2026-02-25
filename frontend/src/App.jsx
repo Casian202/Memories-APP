@@ -78,6 +78,7 @@ function AppRoutes() {
         <Route path="events/:id" element={<EventDetailPage />} />
         <Route path="surprises" element={<SurprisesPage />} />
         <Route path="coming-soon" element={<ComingSoonPage />} />
+        <Route path="coming-soon/:pageId" element={<ComingSoonPage />} />
         <Route path="motivations" element={<MotivationsPage />} />
         <Route path="admin" element={
           <ProtectedRoute adminOnly>

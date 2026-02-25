@@ -12,7 +12,7 @@ const baseNavItems = [
 ]
 
 export default function MobileNav() {
-  const { data: csNavInfo } = useQuery({
+  const { data: csNavItems } = useQuery({
     queryKey: ['coming-soon-nav'],
     queryFn: async () => {
       const res = await api.get('/coming-soon/nav-info')
@@ -23,15 +23,17 @@ export default function MobileNav() {
   })
 
   const navItems = [...baseNavItems]
-  if (csNavInfo) {
-    const csItem = {
-      path: '/coming-soon',
-      label: csNavInfo.current_name?.length > 10
-        ? csNavInfo.current_name.substring(0, 9) + '…'
-        : (csNavInfo.current_name || 'În curând'),
-      icon: csNavInfo.is_revealed ? Sparkles : Clock,
-    }
+  if (csNavItems && Array.isArray(csNavItems) && csNavItems.length > 0) {
     const surpriseIdx = navItems.findIndex(i => i.path === '/surprises')
+    // On mobile, only show the first CS page to avoid overcrowding
+    const cs = csNavItems[0]
+    const csItem = {
+      path: `/coming-soon/${cs.id}`,
+      label: cs.current_name?.length > 10
+        ? cs.current_name.substring(0, 9) + '…'
+        : (cs.current_name || 'În curând'),
+      icon: cs.is_revealed ? Sparkles : Clock,
+    }
     navItems.splice(surpriseIdx + 1, 0, csItem)
   }
 

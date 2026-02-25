@@ -31,8 +31,8 @@ const adminItems = [
 export default function Sidebar({ onClose }) {
   const { isAdmin } = useAuth()
 
-  // Fetch Coming Soon nav info
-  const { data: csNavInfo } = useQuery({
+  // Fetch Coming Soon nav info (now returns array)
+  const { data: csNavItems } = useQuery({
     queryKey: ['coming-soon-nav'],
     queryFn: async () => {
       const res = await api.get('/coming-soon/nav-info')
@@ -42,17 +42,16 @@ export default function Sidebar({ onClose }) {
     retry: false,
   })
 
-  // Build menu with dynamic Coming Soon item
+  // Build menu with dynamic Coming Soon items
   const allMenuItems = [...menuItems]
-  if (csNavInfo) {
-    const csItem = {
-      path: '/coming-soon',
-      label: csNavInfo.current_name || 'În curând',
-      icon: csNavInfo.is_revealed ? Sparkles : Clock,
-    }
-    // Insert after Surprize (index 2 = surprises, so insert at 3)
+  if (csNavItems && Array.isArray(csNavItems) && csNavItems.length > 0) {
     const surpriseIdx = allMenuItems.findIndex(i => i.path === '/surprises')
-    allMenuItems.splice(surpriseIdx + 1, 0, csItem)
+    const csEntries = csNavItems.map(cs => ({
+      path: `/coming-soon/${cs.id}`,
+      label: cs.current_name || 'În curând',
+      icon: cs.is_revealed ? Sparkles : Clock,
+    }))
+    allMenuItems.splice(surpriseIdx + 1, 0, ...csEntries)
   }
 
   return (
@@ -128,7 +127,7 @@ export default function Sidebar({ onClose }) {
       <div className="p-4 border-t border-gray-200/20">
         <div className="text-center text-xs text-gray-400">
           <p>Făcută cu ❤️</p>
-          <p className="mt-1">© 2024 Pentru noi doi</p>
+          <p className="mt-1">© 2026 Pentru draga iubi</p>
         </div>
       </div>
     </div>

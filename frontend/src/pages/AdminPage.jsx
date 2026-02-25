@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Shield, Users, Palette, Calendar, Database, Settings, Eye, EyeOff, Heart, Save, RotateCcw, Trash2, Upload, X, Image, Check, Loader2 } from 'lucide-react'
+import { Shield, Users, Palette, Calendar, Database, Settings, Eye, EyeOff, Heart, Save, RotateCcw, Trash2, Upload, X, Image, Check, Loader2, Clock, Sparkles, Plus } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 
@@ -11,6 +11,7 @@ export default function AdminPage() {
   const tabs = [
     { id: 'relationship', label: 'Relație', icon: Heart },
     { id: 'themes', label: 'Teme', icon: Palette },
+    { id: 'coming-soon', label: 'În curând', icon: Clock },
     { id: 'users', label: 'Utilizatori', icon: Users },
     { id: 'system', label: 'Sistem', icon: Database },
   ]
@@ -40,6 +41,7 @@ export default function AdminPage() {
       {/* Content */}
       {activeTab === 'relationship' && <RelationshipManager />}
       {activeTab === 'themes' && <ThemesManager />}
+      {activeTab === 'coming-soon' && <ComingSoonManager />}
       {activeTab === 'users' && <UsersManager />}
       {activeTab === 'system' && <SystemManager />}
     </div>
@@ -562,6 +564,447 @@ function ThemeCard({ theme, isExpanded, onToggleExpand, onActivate, isActivating
           </motion.div>
         )}
       </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function ComingSoonManager() {
+  const queryClient = useQueryClient()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [expandedPage, setExpandedPage] = useState(null)
+
+  const { data: pages, isLoading } = useQuery({
+    queryKey: ['coming-soon-all'],
+    queryFn: async () => {
+      const response = await api.get('/coming-soon')
+      return response.data
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (pageId) => {
+      await api.delete(`/coming-soon/${pageId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      queryClient.invalidateQueries(['coming-soon-nav'])
+      queryClient.invalidateQueries(['coming-soon-active'])
+      toast.success('Pagina a fost ștearsă')
+    },
+    onError: () => toast.error('Eroare la ștergere')
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async (pageId) => {
+      return (await api.post(`/coming-soon/${pageId}/toggle-active`)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      queryClient.invalidateQueries(['coming-soon-nav'])
+      queryClient.invalidateQueries(['coming-soon-active'])
+      toast.success('Starea a fost schimbată!')
+    },
+    onError: () => toast.error('Eroare la schimbare')
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async (data) => {
+      return (await api.post('/coming-soon', data)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      queryClient.invalidateQueries(['coming-soon-nav'])
+      queryClient.invalidateQueries(['coming-soon-active'])
+      toast.success('Pagina a fost creată!')
+      setShowCreateModal(false)
+    },
+    onError: () => toast.error('Eroare la creare')
+  })
+
+  if (isLoading) return <div className="h-64 skeleton rounded-lg" />
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          Creează și gestionează pagini „În curând" care se dezvăluie la o dată specifică.
+        </p>
+        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Pagină Nouă</span>
+        </button>
+      </div>
+
+      {pages?.length === 0 && (
+        <div className="card text-center py-12">
+          <Clock className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+          <h3 className="text-lg font-medium text-text mb-2">Nicio pagină</h3>
+          <p className="text-gray-500 text-sm">Creează prima pagină „În curând"</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {pages?.map((page) => (
+          <CSPageCard
+            key={page.id}
+            page={page}
+            isExpanded={expandedPage === page.id}
+            onToggleExpand={() => setExpandedPage(expandedPage === page.id ? null : page.id)}
+            onDelete={() => {
+              if (confirm('Ești sigur că vrei să ștergi această pagină?')) {
+                deleteMutation.mutate(page.id)
+              }
+            }}
+            onToggleActive={() => toggleActiveMutation.mutate(page.id)}
+          />
+        ))}
+      </div>
+
+      {/* Create Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CSCreateModal
+            onClose={() => setShowCreateModal(false)}
+            onCreate={(data) => createMutation.mutate(data)}
+            isCreating={createMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function CSPageCard({ page, isExpanded, onToggleExpand, onDelete, onToggleActive }) {
+  const queryClient = useQueryClient()
+  const [editMode, setEditMode] = useState(false)
+  const [realName, setRealName] = useState(page.real_name)
+  const [displayName, setDisplayName] = useState(page.display_name)
+  const [description, setDescription] = useState(page.description || '')
+  const [revealDate, setRevealDate] = useState(page.reveal_date)
+  const [newQuote, setNewQuote] = useState('')
+  const [newQuoteAuthor, setNewQuoteAuthor] = useState('')
+
+  const updateMutation = useMutation({
+    mutationFn: async (data) => {
+      return (await api.put(`/coming-soon/${page.id}`, data)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      queryClient.invalidateQueries(['coming-soon-nav'])
+      toast.success('Pagina a fost actualizată!')
+      setEditMode(false)
+    },
+    onError: () => toast.error('Eroare la actualizare')
+  })
+
+  const uploadPhotosMutation = useMutation({
+    mutationFn: async (files) => {
+      const formData = new FormData()
+      files.forEach(f => formData.append('files', f))
+      return (await api.post(`/coming-soon/${page.id}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      toast.success('Pozele au fost încărcate!')
+    },
+    onError: () => toast.error('Eroare la încărcarea pozelor')
+  })
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: async (photoId) => {
+      await api.delete(`/coming-soon/photos/${photoId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      toast.success('Poza a fost ștearsă')
+    }
+  })
+
+  const addQuoteMutation = useMutation({
+    mutationFn: async (data) => {
+      return (await api.post(`/coming-soon/${page.id}/quotes`, data)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      setNewQuote('')
+      setNewQuoteAuthor('')
+      toast.success('Citatul a fost adăugat!')
+    },
+    onError: () => toast.error('Eroare la adăugare')
+  })
+
+  const deleteQuoteMutation = useMutation({
+    mutationFn: async (quoteId) => {
+      await api.delete(`/coming-soon/quotes/${quoteId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-all'])
+      toast.success('Citatul a fost șters')
+    }
+  })
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`card overflow-hidden transition-all ${page.is_active ? 'ring-2 ring-primary' : 'opacity-80'}`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between cursor-pointer" onClick={onToggleExpand}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(var(--color-primary-rgb), 0.1)' }}>
+            {page.is_revealed ? (
+              <Sparkles className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            ) : (
+              <Clock className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-text truncate">{page.current_name}</h3>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Real: {page.real_name}</span>
+              <span>•</span>
+              <span>Data: {page.reveal_date}</span>
+              <span>•</span>
+              <span>{page.photos?.length || 0} poze, {page.quotes?.length || 0} citate</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {page.is_active ? (
+            <span className="badge badge-primary text-xs">Activă</span>
+          ) : (
+            <span className="text-xs text-gray-400">Inactivă</span>
+          )}
+          {page.is_revealed && (
+            <span className="text-xs text-green-600 font-medium">Dezvăluită ✓</span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 pt-4 border-t border-gray-200/50 space-y-4">
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button onClick={onToggleActive} className="btn btn-ghost text-xs">
+                  {page.is_active ? (
+                    <><EyeOff className="w-3.5 h-3.5" /> Dezactivează</>
+                  ) : (
+                    <><Eye className="w-3.5 h-3.5" /> Activează</>
+                  )}
+                </button>
+                <button onClick={() => setEditMode(!editMode)} className="btn btn-ghost text-xs">
+                  {editMode ? 'Anulează' : 'Editează'}
+                </button>
+                <button onClick={onDelete} className="btn btn-ghost text-xs text-red-500">
+                  <Trash2 className="w-3.5 h-3.5" /> Șterge
+                </button>
+              </div>
+
+              {/* Edit Form */}
+              {editMode && (
+                <div className="space-y-3 p-3 rounded-lg" style={{ background: 'rgba(var(--color-primary-rgb), 0.05)' }}>
+                  <div>
+                    <label className="block text-xs font-medium text-text mb-1">Numele afișat</label>
+                    <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text mb-1">Numele real</label>
+                    <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} className="input text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text mb-1">Data dezvăluirii</label>
+                    <input type="date" value={revealDate} onChange={(e) => setRevealDate(e.target.value)} className="input text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-text mb-1">Descriere</label>
+                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="input text-sm min-h-[60px]" rows={2} />
+                  </div>
+                  <button
+                    onClick={() => updateMutation.mutate({
+                      real_name: realName, display_name: displayName,
+                      description: description || null, reveal_date: revealDate
+                    })}
+                    disabled={updateMutation.isPending}
+                    className="btn btn-primary text-sm w-full"
+                  >
+                    {updateMutation.isPending ? 'Se salvează...' : 'Salvează'}
+                  </button>
+                </div>
+              )}
+
+              {/* Photos */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-text flex items-center gap-2">
+                  <Image className="w-4 h-4" /> Poze Slideshow ({page.photos?.length || 0})
+                </h4>
+                <label className="block border-2 border-dashed border-gray-300 hover:border-primary rounded-lg cursor-pointer transition-colors">
+                  <input type="file" multiple accept="image/*" className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files)
+                      if (files.length > 0) uploadPhotosMutation.mutate(files)
+                    }}
+                    disabled={uploadPhotosMutation.isPending}
+                  />
+                  <div className="flex items-center justify-center gap-2 py-3 text-gray-500">
+                    {uploadPhotosMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <><Upload className="w-4 h-4" /><span className="text-sm">Adaugă poze</span></>
+                    )}
+                  </div>
+                </label>
+                {page.photos?.length > 0 && (
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {page.photos.map((photo) => (
+                      <div key={photo.id} className="relative aspect-square group">
+                        <img src={`/photos/${photo.file_path}`} alt="" className="w-full h-full object-cover rounded-lg" />
+                        <button
+                          onClick={() => deletePhotoMutation.mutate(photo.id)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quotes */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-text flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Citate ({page.quotes?.length || 0})
+                </h4>
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <input type="text" value={newQuote} onChange={(e) => setNewQuote(e.target.value)}
+                      className="input text-sm" placeholder="Textul citatului..." />
+                    <input type="text" value={newQuoteAuthor} onChange={(e) => setNewQuoteAuthor(e.target.value)}
+                      className="input text-sm" placeholder="Autor (opțional)" />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!newQuote.trim()) return
+                      addQuoteMutation.mutate({
+                        text: newQuote.trim(),
+                        author: newQuoteAuthor.trim() || null,
+                        sort_order: (page.quotes?.length || 0)
+                      })
+                    }}
+                    disabled={!newQuote.trim() || addQuoteMutation.isPending}
+                    className="btn btn-primary self-start"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                {page.quotes?.length > 0 && (
+                  <div className="space-y-1">
+                    {page.quotes.map((quote) => (
+                      <div key={quote.id} className="flex items-center justify-between p-2 rounded-lg text-sm"
+                        style={{ background: 'rgba(var(--color-text-rgb), 0.05)' }}>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-text italic">"{quote.text}"</span>
+                          {quote.author && <span className="text-gray-500 ml-1">— {quote.author}</span>}
+                        </div>
+                        <button onClick={() => deleteQuoteMutation.mutate(quote.id)}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded flex-shrink-0 ml-2">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function CSCreateModal({ onClose, onCreate, isCreating }) {
+  const [realName, setRealName] = useState('')
+  const [displayName, setDisplayName] = useState('În curând')
+  const [description, setDescription] = useState('')
+  const [revealDate, setRevealDate] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!realName || !revealDate) {
+      toast.error('Completează numele real și data dezvăluirii')
+      return
+    }
+    onCreate({
+      real_name: realName,
+      display_name: displayName || 'În curând',
+      description: description || null,
+      reveal_date: revealDate
+    })
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="card w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-text">Pagină Nouă „În curând"</h2>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Numele real al paginii *</label>
+            <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)}
+              className="input" placeholder="ex: Ziua noastră specială" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Numele afișat (înainte de dezvăluire)</label>
+            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+              className="input" placeholder="În curând" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Data dezvăluirii *</label>
+            <input type="date" value={revealDate} onChange={(e) => setRevealDate(e.target.value)}
+              className="input" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Descriere</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              className="input min-h-[80px]" placeholder="O scurtă descriere..." rows={3} />
+          </div>
+          <button type="submit" disabled={isCreating} className="btn btn-primary w-full">
+            {isCreating ? 'Se creează...' : 'Creează Pagina'}
+          </button>
+        </form>
+      </motion.div>
     </motion.div>
   )
 }

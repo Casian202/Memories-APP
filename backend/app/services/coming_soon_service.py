@@ -60,12 +60,7 @@ class ComingSoonService:
 
     @staticmethod
     async def create_page(db: AsyncSession, data: ComingSoonPageCreate, user_id: int) -> ComingSoonPage:
-        """Create a new Coming Soon page. Deactivates any existing active pages."""
-        # Deactivate existing active pages
-        await db.execute(
-            update(ComingSoonPage).where(ComingSoonPage.is_active == True).values(is_active=False)
-        )
-
+        """Create a new Coming Soon page."""
         page = ComingSoonPage(
             display_name=data.display_name,
             real_name=data.real_name,
@@ -220,15 +215,27 @@ class ComingSoonService:
         await db.commit()
 
     @staticmethod
-    async def get_nav_info(db: AsyncSession) -> Optional[dict]:
-        """Get minimal info for navigation display."""
-        page = await ComingSoonService.get_active_page(db)
-        if not page:
+    async def get_nav_info(db: AsyncSession) -> Optional[list]:
+        """Get minimal info for navigation display — returns all active pages."""
+        result = await db.execute(
+            select(ComingSoonPage)
+            .where(ComingSoonPage.is_active == True)
+            .options(
+                selectinload(ComingSoonPage.photos),
+                selectinload(ComingSoonPage.quotes)
+            )
+            .order_by(ComingSoonPage.created_at.desc())
+        )
+        pages = result.scalars().all()
+        if not pages:
             return None
-        return {
-            "id": page.id,
-            "current_name": page.current_name,
-            "is_revealed": page.is_revealed,
-            "is_active": page.is_active,
-            "has_content": len(page.photos) > 0 or len(page.quotes) > 0
-        }
+        return [
+            {
+                "id": p.id,
+                "current_name": p.current_name,
+                "is_revealed": p.is_revealed,
+                "is_active": p.is_active,
+                "has_content": len(p.photos) > 0 or len(p.quotes) > 0
+            }
+            for p in pages
+        ]
