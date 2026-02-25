@@ -171,11 +171,11 @@ export default function EventDetailPage() {
       )}
 
       {/* Media Section (Photos + Videos) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text flex items-center gap-2">
-            <Image className="w-5 h-5" />
-            Media ({photos?.length || 0})
+      <div className="space-y-3 md:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h2 className="text-base md:text-lg font-semibold text-text flex items-center gap-2 flex-wrap">
+            <Image className="w-5 h-5 flex-shrink-0" />
+            <span>Media ({photos?.length || 0})</span>
             {photos?.length > 0 && (
               <span className="text-xs font-normal text-gray-400">
                 {photos.filter(p => p.media_type !== 'video').length} poze, {photos.filter(p => p.media_type === 'video').length} videoclipuri
@@ -185,7 +185,7 @@ export default function EventDetailPage() {
           {photos?.length > 0 && (
             <button
               onClick={() => setShowSlideshow(true)}
-              className="btn btn-ghost text-sm"
+              className="btn btn-ghost text-sm self-start sm:self-auto"
             >
               <Play className="w-4 h-4" />
               Slideshow
@@ -218,15 +218,15 @@ export default function EventDetailPage() {
           </label>
         )}
 
-        {/* Photo Grid */}
+        {/* Media Grid */}
         {photosLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="aspect-square skeleton rounded-lg" />
             ))}
           </div>
         ) : photos?.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
             {photos.map((photo, index) => (
               <motion.div
                 key={photo.id}
@@ -251,8 +251,8 @@ export default function EventDetailPage() {
                     />
                     {/* Video play overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
-                      <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                        <Play className="w-6 h-6 text-gray-800 ml-0.5" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6 text-gray-800 ml-0.5" />
                       </div>
                     </div>
                     {/* Video badge */}
@@ -348,26 +348,27 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
+        className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 text-white hover:bg-white/20 rounded-full z-10 min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
         <X className="w-6 h-6" />
       </button>
 
       <button
         onClick={handlePrev}
-        className="absolute left-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
+        className="absolute left-1 sm:left-4 p-2 text-white hover:bg-white/20 rounded-full z-10 min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
-        <ArrowLeft className="w-6 h-6" />
+        <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
 
       {isCurrentVideo ? (
         <video
           key={currentMedia.id}
           src={`/photos/${currentMedia.file_path}`}
-          className="max-w-full max-h-full object-contain"
+          className="max-w-[calc(100%-4rem)] sm:max-w-[calc(100%-6rem)] max-h-[calc(100vh-6rem)] object-contain"
           controls
           autoPlay
           playsInline
@@ -376,19 +377,19 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
         <img
           src={`/photos/${currentMedia.file_path}`}
           alt=""
-          className="max-w-full max-h-full object-contain"
+          className="max-w-[calc(100%-4rem)] sm:max-w-[calc(100%-6rem)] max-h-[calc(100vh-6rem)] object-contain"
         />
       )}
 
       <button
         onClick={handleNext}
-        className="absolute right-4 p-2 text-white hover:bg-white/20 rounded-full z-10"
+        className="absolute right-1 sm:right-4 p-2 text-white hover:bg-white/20 rounded-full z-10 min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
-        <ArrowLeft className="w-6 h-6 rotate-180" />
+        <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 rotate-180" />
       </button>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-sm">
-        {isCurrentVideo && <Film className="w-4 h-4" />}
+      <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-xs sm:text-sm bg-black/40 px-3 py-1 rounded-full">
+        {isCurrentVideo && <Film className="w-3 h-3 sm:w-4 sm:h-4" />}
         {currentIndex + 1} / {photos.length}
       </div>
     </motion.div>

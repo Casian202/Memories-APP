@@ -625,11 +625,11 @@ function ComingSoonManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-gray-500">
           Creează și gestionează pagini „În curând" care se dezvăluie la o dată specifică.
         </p>
-        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary flex-shrink-0 self-start sm:self-auto">
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Pagină Nouă</span>
         </button>
@@ -764,11 +764,11 @@ function CSPageCard({ page, isExpanded, onToggleExpand, onDelete, onToggleActive
           </div>
           <div className="min-w-0">
             <h3 className="font-semibold text-text truncate">{page.current_name}</h3>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>Real: {page.real_name}</span>
-              <span>•</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
+              <span className="truncate max-w-[120px] sm:max-w-none">Real: {page.real_name}</span>
+              <span className="hidden sm:inline">•</span>
               <span>Data: {page.reveal_date}</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>{page.photos?.length || 0} poze, {page.quotes?.length || 0} citate</span>
             </div>
           </div>

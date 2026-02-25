@@ -279,48 +279,81 @@ body, .card, .btn, .input { transition: background-color 0.3s ease, color 0.3s e
 /* Background image support */
 body.has-bg-image {
   background-color: transparent !important;
+  isolation: isolate;
+}
+
+body.has-bg-image::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(var(--color-background-rgb), 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: -1;
+  pointer-events: none;
 }
 
 body.has-bg-image .min-h-screen {
   background-color: transparent !important;
 }
 
-body.has-bg-image .card {
-  background-color: rgba(var(--color-card-rgb), 0.88) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+body.has-bg-image .page-container {
+  background-color: transparent !important;
 }
 
-body.has-bg-image aside > div {
+body.has-bg-image .card {
   background-color: rgba(var(--color-card-rgb), 0.92) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--color-card-rgb), 0.5);
+}
+
+body.has-bg-image aside > div {
+  background-color: rgba(var(--color-card-rgb), 0.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 body.has-bg-image .glass {
-  background-color: rgba(var(--color-card-rgb), 0.92) !important;
+  background-color: rgba(var(--color-card-rgb), 0.93) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
 body.has-bg-image .tab-nav {
-  background-color: rgba(var(--color-card-rgb), 0.85) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background-color: rgba(var(--color-card-rgb), 0.90) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
 }
 
 body.has-bg-image header {
-  background-color: rgba(var(--color-card-rgb), 0.88) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-body.has-bg-image .page-container {
-  background-color: transparent !important;
+  background-color: rgba(var(--color-card-rgb), 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 body.has-bg-image .bg-background {
   background-color: transparent !important;
+}
+
+/* Text readability helpers on bg images */
+body.has-bg-image .page-header,
+body.has-bg-image .page-subheader {
+  text-shadow: 0 1px 8px rgba(var(--color-background-rgb), 0.7),
+               0 0 2px rgba(var(--color-background-rgb), 0.9);
+}
+
+body.has-bg-image .tab-btn {
+  text-shadow: 0 1px 3px rgba(var(--color-background-rgb), 0.5);
+}
+
+/* Mobile nav with bg image */
+body.has-bg-image nav.fixed.bottom-0 {
+  background-color: rgba(var(--color-card-rgb), 0.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
