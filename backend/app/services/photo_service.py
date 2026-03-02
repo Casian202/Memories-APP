@@ -17,7 +17,8 @@ from app.utils.image_processor import (
     process_image,
     save_image,
     save_video,
-    save_video_streaming
+    save_video_streaming,
+    transcode_video_if_needed
 )
 from app.config import settings
 
@@ -60,6 +61,16 @@ class PhotoService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=str(e)
                     )
+                
+                # Transcode H.265/HEVC to H.264 for browser compatibility
+                file_path, was_transcoded = await transcode_video_if_needed(
+                    file_path, subfolder
+                )
+                if was_transcoded:
+                    # Update filename and file size after transcoding
+                    filename = os.path.basename(file_path)
+                    full_path = os.path.join(settings.UPLOAD_DIR, file_path)
+                    file_size = os.path.getsize(full_path)
                 
                 photo = Photo(
                     event_id=event_id,

@@ -3,12 +3,16 @@ Image and video processing utilities.
 """
 import os
 import uuid
+import subprocess
+import logging
 from io import BytesIO
 from PIL import Image, ImageOps
 from typing import Tuple, Optional
 import aiofiles
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # Allowed image types
@@ -226,6 +230,114 @@ async def save_video_streaming(
 
     rel_path = os.path.join(subfolder, filename) if subfolder else filename
     return rel_path, total_size
+
+
+def get_video_codec(file_path: str) -> Optional[str]:
+    """
+    Get the video codec name using ffprobe.
+    Returns codec name (e.g. 'hevc', 'h264') or None if ffprobe fails.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name",
+                "-of", "csv=p=0",
+                file_path
+            ],
+            capture_output=True, text=True, timeout=30
+        )
+        codec = result.stdout.strip().rstrip(",")
+        return codec if codec else None
+    except Exception as e:
+        logger.warning(f"ffprobe failed for {file_path}: {e}")
+        return None
+
+
+def transcode_to_h264(input_path: str, output_path: str) -> bool:
+    """
+    Transcode a video to H.264/AAC using ffmpeg.
+    Returns True on success, False on failure.
+    """
+    try:
+        logger.info(f"Transcoding {input_path} -> {output_path}")
+        result = subprocess.run(
+            [
+                "ffmpeg", "-i", input_path,
+                "-c:v", "libx264",       # H.264 video codec
+                "-preset", "fast",        # Speed/quality tradeoff
+                "-crf", "23",             # Quality (18-28, lower=better)
+                "-c:a", "aac",            # AAC audio codec
+                "-b:a", "128k",           # Audio bitrate
+                "-movflags", "+faststart", # Put moov atom at start for streaming
+                "-pix_fmt", "yuv420p",     # Compatible pixel format
+                "-y",                      # Overwrite output
+                output_path
+            ],
+            capture_output=True, text=True,
+            timeout=600  # 10 minute timeout
+        )
+        if result.returncode == 0:
+            logger.info(f"Transcoding complete: {output_path}")
+            return True
+        else:
+            logger.error(f"ffmpeg error: {result.stderr[:500]}")
+            return False
+    except subprocess.TimeoutExpired:
+        logger.error(f"Transcoding timed out for {input_path}")
+        return False
+    except Exception as e:
+        logger.error(f"Transcoding failed: {e}")
+        return False
+
+
+async def transcode_video_if_needed(file_path: str, subfolder: str = "") -> Tuple[str, bool]:
+    """
+    Check if a video uses H.265/HEVC and transcode to H.264 if needed.
+    Replaces the original file with the transcoded version.
+    Returns (possibly updated relative path, was_transcoded).
+    """
+    full_path = os.path.join(settings.UPLOAD_DIR, file_path)
+    
+    if not os.path.isfile(full_path):
+        return file_path, False
+    
+    codec = get_video_codec(full_path)
+    if not codec:
+        return file_path, False
+    
+    # Only transcode if codec is H.265/HEVC
+    hevc_codecs = {"hevc", "h265", "hev1"}
+    if codec.lower() not in hevc_codecs:
+        logger.info(f"Video {file_path} uses {codec}, no transcoding needed")
+        return file_path, False
+    
+    logger.info(f"Video {file_path} uses {codec} (H.265), transcoding to H.264...")
+    
+    # Create output path with .mp4 extension
+    base, _ = os.path.splitext(full_path)
+    output_path = base + "_h264.mp4"
+    
+    success = transcode_to_h264(full_path, output_path)
+    
+    if success and os.path.isfile(output_path):
+        # Remove original and rename transcoded file
+        os.remove(full_path)
+        
+        # New filename with .mp4 extension
+        new_filename = os.path.basename(base) + ".mp4"
+        final_path = os.path.join(os.path.dirname(full_path), new_filename)
+        os.rename(output_path, final_path)
+        
+        # Return updated relative path
+        new_rel_path = os.path.join(subfolder, new_filename) if subfolder else new_filename
+        return new_rel_path, True
+    else:
+        # Cleanup failed output
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return file_path, False
 
 
 def get_image_url(file_path: str) -> str:

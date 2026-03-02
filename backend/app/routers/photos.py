@@ -203,6 +203,15 @@ async def complete_chunked_upload(
     
     rel_path = os.path.join(subfolder, final_filename)
     
+    # Transcode H.265/HEVC videos to H.264 for browser compatibility
+    if media_type == "video":
+        from app.utils.image_processor import transcode_video_if_needed
+        rel_path, was_transcoded = await transcode_video_if_needed(rel_path, subfolder)
+        if was_transcoded:
+            final_filename = os.path.basename(rel_path)
+            final_path = os.path.join(settings.UPLOAD_DIR, rel_path)
+            total_size = os.path.getsize(final_path)
+    
     # Save to database
     photo = Photo(
         event_id=event_id,
