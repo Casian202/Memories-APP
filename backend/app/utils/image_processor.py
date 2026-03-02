@@ -322,6 +322,13 @@ async def transcode_video_if_needed(file_path: str, subfolder: str = "") -> Tupl
     success = transcode_to_h264(full_path, output_path)
     
     if success and os.path.isfile(output_path):
+        # Verify the transcoded file is valid before removing original
+        verify_codec = get_video_codec(output_path)
+        if not verify_codec:
+            logger.error(f"Transcoded file appears corrupt, keeping original: {file_path}")
+            os.remove(output_path)
+            return file_path, False
+        
         # Remove original and rename transcoded file
         os.remove(full_path)
         
