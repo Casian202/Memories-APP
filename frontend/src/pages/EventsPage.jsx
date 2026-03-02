@@ -272,11 +272,13 @@ function EventCard({ event }) {
           {event.cover_photo ? (
             event.cover_photo.media_type === 'video' ? (
               <video
-                src={`/api/stream/video/${event.cover_photo.file_path}#t=0.5`}
+                src={`/photos/${event.cover_photo.file_path}#t=0.5`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                autoPlay
+                loop
                 muted
                 playsInline
-                preload="metadata"
+                preload="auto"
                 onLoadedData={(e) => {
                   if (e.target.currentTime === 0) e.target.currentTime = 0.5
                 }}

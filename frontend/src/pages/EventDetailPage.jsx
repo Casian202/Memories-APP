@@ -240,7 +240,7 @@ export default function EventDetailPage() {
         <div className="relative h-48 sm:h-64 md:h-72 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 rounded-b-2xl overflow-hidden">
           {event.cover_photo.media_type === 'video' ? (
             <video
-              src={`/api/stream/video/${event.cover_photo.file_path}`}
+              src={`/photos/${event.cover_photo.file_path}`}
               className="w-full h-full object-cover"
               autoPlay
               loop
@@ -408,7 +408,7 @@ export default function EventDetailPage() {
                     }}
                   >
                     <video
-                      src={`/api/stream/video/${photo.file_path}#t=0.5`}
+                      src={`/photos/${photo.file_path}#t=0.5`}
                       className="w-full h-full object-cover rounded-lg"
                       muted
                       playsInline
@@ -536,7 +536,7 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
       {isCurrentVideo ? (
         <video
           key={currentMedia.id}
-          src={`/api/stream/video/${currentMedia.file_path}`}
+          src={`/photos/${currentMedia.file_path}`}
           className="max-w-[calc(100%-4rem)] sm:max-w-[calc(100%-6rem)] max-h-[calc(100vh-6rem)] object-contain"
           controls
           autoPlay
