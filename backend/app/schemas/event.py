@@ -33,6 +33,7 @@ class PhotoResponse(BaseModel):
     file_size: Optional[int]
     mime_type: Optional[str]
     media_type: Optional[str] = "image"
+    transcoding_status: Optional[str] = None
     width: Optional[int]
     height: Optional[int]
     is_cover: bool

@@ -347,6 +347,19 @@ async def transcode_video_if_needed(file_path: str, subfolder: str = "") -> Tupl
         return file_path, False
 
 
+def needs_transcoding(file_path: str) -> bool:
+    """
+    Quick check if a video file uses H.265/HEVC codec.
+    """
+    full_path = os.path.join(settings.UPLOAD_DIR, file_path) if not os.path.isabs(file_path) else file_path
+    if not os.path.isfile(full_path):
+        return False
+    codec = get_video_codec(full_path)
+    if not codec:
+        return False
+    return codec.lower() in {"hevc", "h265", "hev1"}
+
+
 def get_image_url(file_path: str) -> str:
     """Get the URL for an image or video file."""
     return f"/photos/{file_path}"

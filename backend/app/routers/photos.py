@@ -203,14 +203,11 @@ async def complete_chunked_upload(
     
     rel_path = os.path.join(subfolder, final_filename)
     
-    # Transcode H.265/HEVC videos to H.264 for browser compatibility
+    # Check if video needs transcoding (will be done in background)
+    transcode_needed = False
     if media_type == "video":
-        from app.utils.image_processor import transcode_video_if_needed
-        rel_path, was_transcoded = await transcode_video_if_needed(rel_path, subfolder)
-        if was_transcoded:
-            final_filename = os.path.basename(rel_path)
-            final_path = os.path.join(settings.UPLOAD_DIR, rel_path)
-            total_size = os.path.getsize(final_path)
+        from app.utils.image_processor import needs_transcoding
+        transcode_needed = needs_transcoding(rel_path)
     
     # Save to database
     photo = Photo(
@@ -221,6 +218,7 @@ async def complete_chunked_upload(
         file_size=total_size,
         mime_type=content_type if media_type == "video" else "image/jpeg",
         media_type=media_type,
+        transcoding_status="pending" if transcode_needed else None,
         width=width,
         height=height,
         is_cover=False,
@@ -229,6 +227,11 @@ async def complete_chunked_upload(
     db.add(photo)
     await db.commit()
     await db.refresh(photo)
+    
+    # Start background transcoding if needed
+    if transcode_needed:
+        from app.services.transcode_service import start_background_transcode
+        start_background_transcode(photo.id, rel_path, subfolder)
     
     return {
         "message": "Fișier încărcat cu succes",

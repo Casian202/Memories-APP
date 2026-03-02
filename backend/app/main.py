@@ -53,6 +53,12 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("ALTER TABLE photos ADD COLUMN media_type VARCHAR(10) DEFAULT 'image'"))
             await conn.execute(text("UPDATE photos SET media_type = 'image' WHERE media_type IS NULL"))
             print("Added media_type column to photos table")
+        # Add transcoding_status column to photos if not exists
+        try:
+            await conn.execute(text("SELECT transcoding_status FROM photos LIMIT 1"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE photos ADD COLUMN transcoding_status VARCHAR(20)"))
+            print("Added transcoding_status column to photos table")
     print("Migrations complete.")
 
     # Initialize JSON user storage

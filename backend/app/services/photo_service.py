@@ -18,8 +18,9 @@ from app.utils.image_processor import (
     save_image,
     save_video,
     save_video_streaming,
-    transcode_video_if_needed
+    needs_transcoding
 )
+from app.services.transcode_service import start_background_transcode
 from app.config import settings
 
 
@@ -62,15 +63,8 @@ class PhotoService:
                         detail=str(e)
                     )
                 
-                # Transcode H.265/HEVC to H.264 for browser compatibility
-                file_path, was_transcoded = await transcode_video_if_needed(
-                    file_path, subfolder
-                )
-                if was_transcoded:
-                    # Update filename and file size after transcoding
-                    filename = os.path.basename(file_path)
-                    full_path = os.path.join(settings.UPLOAD_DIR, file_path)
-                    file_size = os.path.getsize(full_path)
+                # Check if video needs H.265->H.264 transcoding
+                transcode_needed = needs_transcoding(file_path)
                 
                 photo = Photo(
                     event_id=event_id,
@@ -80,6 +74,7 @@ class PhotoService:
                     file_size=file_size,
                     mime_type=file.content_type,
                     media_type="video",
+                    transcoding_status="pending" if transcode_needed else None,
                     width=None,
                     height=None,
                     is_cover=False,
@@ -129,6 +124,12 @@ class PhotoService:
         
         for photo in uploaded_photos:
             await db.refresh(photo)
+        
+        # Start background transcoding for any H.265 videos
+        for photo in uploaded_photos:
+            if photo.transcoding_status == "pending":
+                subfolder = f"events/{event_id}"
+                start_background_transcode(photo.id, photo.file_path, subfolder)
         
         return uploaded_photos
     

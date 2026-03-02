@@ -32,6 +32,15 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const response = await api.get(`/events/${id}/photos`)
       return response.data
+    },
+    // Auto-refetch every 5s while any video is still transcoding
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return false
+      const hasTranscoding = data.some(p => 
+        p.transcoding_status === 'pending' || p.transcoding_status === 'processing'
+      )
+      return hasTranscoding ? 5000 : false
     }
   })
 
@@ -403,27 +412,43 @@ export default function EventDetailPage() {
                   <div
                     className="w-full h-full rounded-lg cursor-pointer relative bg-black"
                     onClick={() => {
+                      if (photo.transcoding_status && photo.transcoding_status !== 'done') return
                       setCurrentPhotoIndex(index)
                       setShowSlideshow(true)
                     }}
                   >
-                    <video
-                      src={`/photos/${photo.file_path}#t=0.5`}
-                      className="w-full h-full object-cover rounded-lg"
-                      muted
-                      playsInline
-                      preload="metadata"
-                      onLoadedData={(e) => {
-                        // Seek to 0.5s to get a thumbnail frame
-                        if (e.target.currentTime === 0) e.target.currentTime = 0.5
-                      }}
-                    />
-                    {/* Video play overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                        <Play className="w-5 h-5 sm:w-6 sm:h-6 text-gray-800 ml-0.5" />
+                    {photo.transcoding_status && photo.transcoding_status !== 'done' ? (
+                      /* Transcoding in progress overlay */
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 rounded-lg">
+                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <span className="text-white text-xs">Se convertește...</span>
+                        <span className="text-gray-400 text-[10px] mt-1">
+                          {photo.transcoding_status === 'pending' ? 'În așteptare' : 
+                           photo.transcoding_status === 'processing' ? 'Se procesează' : 
+                           photo.transcoding_status === 'failed' ? 'Eroare' : ''}
+                        </span>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <video
+                          src={`/photos/${photo.file_path}#t=0.5`}
+                          className="w-full h-full object-cover rounded-lg"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onLoadedData={(e) => {
+                            // Seek to 0.5s to get a thumbnail frame
+                            if (e.target.currentTime === 0) e.target.currentTime = 0.5
+                          }}
+                        />
+                        {/* Video play overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                            <Play className="w-5 h-5 sm:w-6 sm:h-6 text-gray-800 ml-0.5" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                     {/* Video badge */}
                     <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded flex items-center gap-1">
                       <Film className="w-3 h-3" />

@@ -20,6 +20,7 @@ class Photo(Base):
     file_size = Column(Integer, nullable=True)
     mime_type = Column(String(50), nullable=True)
     media_type = Column(String(10), default="image")  # "image" or "video"
+    transcoding_status = Column(String(20), nullable=True)  # null, pending, processing, done, failed
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     is_cover = Column(Boolean, default=False)
