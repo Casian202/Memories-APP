@@ -2,7 +2,7 @@
 API routers package.
 """
 from fastapi import APIRouter
-from app.routers import auth, events, photos, surprises, motivations, messages, themes, admin, settings, coming_soon, notifications
+from app.routers import auth, events, photos, surprises, motivations, messages, themes, admin, settings, coming_soon, notifications, stream
 
 api_router = APIRouter()
 
@@ -17,3 +17,4 @@ api_router.include_router(themes.router, prefix="/themes", tags=["themes"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(stream.router, prefix="/stream", tags=["stream"])

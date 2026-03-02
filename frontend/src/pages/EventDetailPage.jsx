@@ -16,6 +16,7 @@ export default function EventDetailPage() {
   const queryClient = useQueryClient()
   const [showSlideshow, setShowSlideshow] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -35,20 +36,30 @@ export default function EventDetailPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async (files) => {
+      setUploadProgress(0)
       const formData = new FormData()
       files.forEach(file => formData.append('files', file))
       const response = await api.post(`/events/${id}/photos`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 300000, // 5 min timeout for large video uploads
+        timeout: 600000, // 10 min timeout for large video uploads
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setUploadProgress(percent)
+        }
       })
       return response.data
     },
     onSuccess: () => {
+      setUploadProgress(0)
       queryClient.invalidateQueries(['photos', id])
       toast.success('Fișierele au fost încărcate cu succes!')
     },
-    onError: () => {
-      toast.error('Eroare la încărcarea fișierelor')
+    onError: (error) => {
+      setUploadProgress(0)
+      const msg = error.response?.data?.detail || 'Eroare la încărcarea fișierelor'
+      toast.error(msg)
     }
   })
 
@@ -110,12 +121,14 @@ export default function EventDetailPage() {
         <div className="relative h-48 sm:h-64 md:h-72 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 rounded-b-2xl overflow-hidden">
           {event.cover_photo.media_type === 'video' ? (
             <video
-              src={`/photos/${event.cover_photo.file_path}`}
+              src={`/api/stream/video/${event.cover_photo.file_path}`}
               className="w-full h-full object-cover"
               autoPlay
               loop
               muted
               playsInline
+              preload="auto"
+              onError={(e) => { e.target.style.display = 'none' }}
             />
           ) : (
             <img
@@ -210,19 +223,30 @@ export default function EventDetailPage() {
             <input
               type="file"
               multiple
-              accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
+              accept="image/*,video/*"
               className="hidden"
               onChange={handleFileChange}
               disabled={uploadMutation.isPending}
             />
             <div className="flex flex-col items-center py-6 text-gray-500">
               {uploadMutation.isPending ? (
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="w-full px-6 space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm font-medium">Se încarcă... {uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
               ) : (
                 <>
                   <Plus className="w-8 h-8 mb-2" />
                   <span className="text-sm">Apasă pentru a adăuga poze sau videoclipuri</span>
-                  <span className="text-xs text-gray-400 mt-1">Maxim 200MB per fișier</span>
+                  <span className="text-xs text-gray-400 mt-1">Maxim 500MB per fișier</span>
                 </>
               )}
             </div>
@@ -255,10 +279,15 @@ export default function EventDetailPage() {
                     }}
                   >
                     <video
-                      src={`/photos/${photo.file_path}`}
+                      src={`/api/stream/video/${photo.file_path}#t=0.5`}
                       className="w-full h-full object-cover rounded-lg"
                       muted
+                      playsInline
                       preload="metadata"
+                      onLoadedData={(e) => {
+                        // Seek to 0.5s to get a thumbnail frame
+                        if (e.target.currentTime === 0) e.target.currentTime = 0.5
+                      }}
                     />
                     {/* Video play overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
@@ -378,11 +407,12 @@ function Slideshow({ photos, initialIndex, eventId, onClose, onPrev, onNext }) {
       {isCurrentVideo ? (
         <video
           key={currentMedia.id}
-          src={`/photos/${currentMedia.file_path}`}
+          src={`/api/stream/video/${currentMedia.file_path}`}
           className="max-w-[calc(100%-4rem)] sm:max-w-[calc(100%-6rem)] max-h-[calc(100vh-6rem)] object-contain"
           controls
           autoPlay
           playsInline
+          preload="auto"
         />
       ) : (
         <img

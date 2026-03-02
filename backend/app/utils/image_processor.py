@@ -26,6 +26,13 @@ ALLOWED_VIDEO_TYPES = {
     "video/quicktime": "mov",
     "video/x-msvideo": "avi",
     "video/x-matroska": "mkv",
+    "video/3gpp": "3gp",
+    "video/3gpp2": "3g2",
+    "video/x-m4v": "m4v",
+    "video/mpeg": "mpeg",
+    "video/ogg": "ogv",
+    "video/x-ms-wmv": "wmv",
+    "video/MP2T": "ts",
 }
 
 # Combined allowed types
@@ -35,7 +42,7 @@ ALLOWED_TYPES = {**ALLOWED_IMAGE_TYPES, **ALLOWED_VIDEO_TYPES}
 MAX_WIDTH = 1920
 MAX_HEIGHT = 1920
 THUMBNAIL_SIZE = (300, 300)
-MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 
 
 def validate_image(content_type: str) -> bool:
@@ -200,19 +207,22 @@ async def save_video_streaming(
     total_size = 0
     chunk_size = 1024 * 1024  # 1MB chunks
 
-    async with aiofiles.open(file_path, "wb") as f:
-        while True:
-            chunk = await upload_file.read(chunk_size)
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if max_size and total_size > max_size:
-                # Clean up partial file
-                await f.close()
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                raise ValueError(f"Fișier prea mare. Maxim {max_size // (1024*1024)}MB")
-            await f.write(chunk)
+    try:
+        async with aiofiles.open(file_path, "wb") as f:
+            while True:
+                chunk = await upload_file.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if max_size and total_size > max_size:
+                    # Will clean up in finally-like block after context manager exits
+                    raise ValueError(f"Fișier prea mare. Maxim {max_size // (1024*1024)}MB")
+                await f.write(chunk)
+    except ValueError:
+        # Clean up partial file on size exceeded
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
 
     rel_path = os.path.join(subfolder, filename) if subfolder else filename
     return rel_path, total_size

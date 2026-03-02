@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.models.photo import Photo, Collage
+from app.schemas.event import PhotoResponse
 from app.services.photo_service import PhotoService
 from app.services.event_service import EventService
 from app.utils.security import get_current_user, get_admin_user
@@ -22,7 +23,7 @@ async def upload_photos(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Upload photos to an event."""
+    """Upload photos/videos to an event."""
     # Check event exists
     event = await EventService.get_event_by_id(db, event_id)
     if not event:
@@ -32,18 +33,21 @@ async def upload_photos(
         )
     
     photos = await PhotoService.upload_photos(db, event_id, files, current_user.id)
-    return {"message": f"{len(photos)} foto-uri încărcate cu succes", "photos": photos}
+    return {
+        "message": f"{len(photos)} fișiere încărcate cu succes",
+        "photos": [PhotoResponse.from_orm(p) for p in photos]
+    }
 
 
-@router.get("/events/{event_id}/photos")
+@router.get("/events/{event_id}/photos", response_model=List[PhotoResponse])
 async def get_event_photos(
     event_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all photos for an event."""
+    """Get all photos/videos for an event."""
     photos = await PhotoService.get_event_photos(db, event_id)
-    return photos
+    return [PhotoResponse.from_orm(p) for p in photos]
 
 
 @router.delete("/photos/{photo_id}")

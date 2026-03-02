@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     BACKUP_DIR: str = "/data/backups"
     LOG_DIR: str = "/data/logs"
     USERS_FILE: str = "/data/sqlite/users.json"  # JSON file for user storage
-    MAX_UPLOAD_SIZE: int = 200  # MB (increased for video uploads)
+    MAX_UPLOAD_SIZE: int = 500  # MB (increased for video uploads from phone)
     
     # Password requirements
     PASSWORD_MIN_LENGTH: int = 8

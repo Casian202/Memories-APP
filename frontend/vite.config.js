@@ -9,11 +9,17 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://backend:8000',
-        changeOrigin: true
+        changeOrigin: true,
+        timeout: 600000, // 10 min for large video uploads
       },
       '/uploads': {
         target: 'http://backend:8000',
         changeOrigin: true
+      },
+      '/photos': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
+        rewrite: (path) => '/uploads' + path.replace('/photos', '')
       }
     }
   },
