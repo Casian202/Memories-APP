@@ -11,6 +11,17 @@ ingress:
     service: http://nginx:80
     originRequest:
       noTLSVerify: true
+      # Increased timeouts for large video uploads from phone
+      connectTimeout: 120s
+      # Keep-alive to prevent connection drops during upload
+      keepAliveTimeout: 120s
+      keepAliveConnections: 10
+      # Disable chunked encoding issues  
+      disableChunkedEncoding: false
+      # HTTP/2 origin for better performance
+      http2Origin: true
+      # Extend proxy timeouts
+      originServerName: ""
   
   # Catch-all rule (required)
   - service: http_status:404

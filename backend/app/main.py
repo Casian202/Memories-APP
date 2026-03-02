@@ -79,6 +79,22 @@ async def lifespan(app: FastAPI):
         break
     print("Themes seeded.")
 
+    # Clean up stale chunked upload temp files (older than 24h)
+    import shutil
+    import time
+    temp_dir = os.path.join(settings.UPLOAD_DIR, "temp")
+    if os.path.exists(temp_dir):
+        now = time.time()
+        for entry in os.listdir(temp_dir):
+            entry_path = os.path.join(temp_dir, entry)
+            if os.path.isdir(entry_path):
+                age = now - os.path.getmtime(entry_path)
+                if age > 86400:  # 24 hours
+                    shutil.rmtree(entry_path, ignore_errors=True)
+                    print(f"Cleaned up stale upload: {entry}")
+    os.makedirs(temp_dir, exist_ok=True)
+    print("Temp upload directory ready.")
+
     print("Application startup complete!")
 
     yield

@@ -17,6 +17,7 @@ export default function EventDetailPage() {
   const [showSlideshow, setShowSlideshow] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadInfo, setUploadInfo] = useState({ loaded: 0, total: 0, speed: 0 })
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -34,31 +35,127 @@ export default function EventDetailPage() {
     }
   })
 
+  // Threshold for chunked upload (50MB) - Cloudflare Tunnel free plan limits to ~100MB
+  const CHUNK_SIZE = 10 * 1024 * 1024 // 10MB per chunk
+  const CHUNKED_THRESHOLD = 50 * 1024 * 1024 // Files > 50MB use chunked upload
+
+  // Chunked upload for a single large file  
+  const uploadFileChunked = async (file, startTime, totalSizeAllFiles, prevLoaded) => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    
+    // 1. Initialize upload session
+    const initForm = new FormData()
+    initForm.append('filename', file.name)
+    initForm.append('file_size', file.size.toString())
+    initForm.append('content_type', file.type || 'application/octet-stream')
+    initForm.append('total_chunks', totalChunks.toString())
+    
+    const initRes = await api.post(`/events/${id}/upload/init`, initForm, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000
+    })
+    const uploadId = initRes.data.upload_id
+    
+    // 2. Upload each chunk
+    let uploadedBytes = 0
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const blob = file.slice(start, end)
+      
+      const chunkForm = new FormData()
+      chunkForm.append('chunk_index', i.toString())
+      chunkForm.append('chunk', blob, `chunk_${i}`)
+      
+      await api.post(`/events/${id}/upload/${uploadId}/chunk`, chunkForm, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000, // 2 min per chunk
+        onUploadProgress: (progressEvent) => {
+          const chunkLoaded = progressEvent.loaded || 0
+          const currentTotal = prevLoaded + uploadedBytes + chunkLoaded
+          const percent = totalSizeAllFiles > 0 ? Math.round((currentTotal * 100) / totalSizeAllFiles) : 0
+          const elapsed = (Date.now() - startTime) / 1000
+          const speed = elapsed > 0 ? currentTotal / elapsed : 0
+          
+          setUploadProgress(Math.min(percent, 99))
+          setUploadInfo({ loaded: currentTotal, total: totalSizeAllFiles, speed })
+        }
+      })
+      
+      uploadedBytes += (end - start)
+    }
+    
+    // 3. Complete - assemble on server
+    const completeRes = await api.post(`/events/${id}/upload/${uploadId}/complete`, null, {
+      timeout: 120000
+    })
+    
+    return completeRes.data
+  }
+
   const uploadMutation = useMutation({
     mutationFn: async (files) => {
       setUploadProgress(0)
-      const formData = new FormData()
-      files.forEach(file => formData.append('files', file))
-      const response = await api.post(`/events/${id}/photos`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 600000, // 10 min timeout for large video uploads
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        onUploadProgress: (progressEvent) => {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          setUploadProgress(percent)
-        }
-      })
-      return response.data
+      setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+      
+      const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+      const startTime = Date.now()
+      
+      // Separate files into small (standard upload) and large (chunked upload)
+      const smallFiles = files.filter(f => f.size <= CHUNKED_THRESHOLD)
+      const largeFiles = files.filter(f => f.size > CHUNKED_THRESHOLD)
+      
+      const results = []
+      let totalUploaded = 0
+      
+      // Upload large files one by one using chunked upload
+      for (const file of largeFiles) {
+        const result = await uploadFileChunked(file, startTime, totalSize, totalUploaded)
+        results.push(result)
+        totalUploaded += file.size
+      }
+      
+      // Upload small files together in one request (faster)
+      if (smallFiles.length > 0) {
+        const formData = new FormData()
+        smallFiles.forEach(file => formData.append('files', file))
+        const response = await api.post(`/events/${id}/photos`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 900000,
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+          onUploadProgress: (progressEvent) => {
+            const total = progressEvent.total || smallFiles.reduce((s, f) => s + f.size, 0)
+            const loaded = progressEvent.loaded || 0
+            const currentTotal = totalUploaded + loaded
+            const percent = totalSize > 0 ? Math.round((currentTotal * 100) / totalSize) : 0
+            const elapsed = (Date.now() - startTime) / 1000
+            const speed = elapsed > 0 ? currentTotal / elapsed : 0
+            
+            setUploadProgress(Math.min(percent, 99))
+            setUploadInfo({ loaded: currentTotal, total: totalSize, speed })
+          }
+        })
+        results.push(response.data)
+      }
+      
+      return results
     },
     onSuccess: () => {
-      setUploadProgress(0)
+      setUploadProgress(100)
+      setTimeout(() => {
+        setUploadProgress(0)
+        setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+      }, 500)
       queryClient.invalidateQueries(['photos', id])
       toast.success('Fișierele au fost încărcate cu succes!')
     },
     onError: (error) => {
       setUploadProgress(0)
-      const msg = error.response?.data?.detail || 'Eroare la încărcarea fișierelor'
+      setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+      const msg = error.response?.data?.detail || 
+        (error.code === 'ECONNABORTED' ? 'Upload timeout - fișier prea mare sau conexiune lentă' :
+        'Eroare la încărcarea fișierelor')
       toast.error(msg)
     }
   })
@@ -90,8 +187,30 @@ export default function EventDetailPage() {
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files)
     if (files.length > 0) {
+      // Check individual file sizes and warn
+      const maxSize = 500 * 1024 * 1024 // 500MB
+      const oversized = files.filter(f => f.size > maxSize)
+      if (oversized.length > 0) {
+        toast.error(`Fișier prea mare: ${oversized[0].name} (${formatBytes(oversized[0].size)}). Maxim 500MB.`)
+        return
+      }
       uploadMutation.mutate(files)
     }
+    // Reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  const formatSpeed = (bytesPerSec) => {
+    if (bytesPerSec === 0) return '...'
+    return formatBytes(bytesPerSec) + '/s'
   }
 
   if (isLoading) {
@@ -235,11 +354,21 @@ export default function EventDetailPage() {
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     <span className="text-sm font-medium">Se încarcă... {uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
                     <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
+                      className="bg-primary h-3 rounded-full transition-all duration-300 relative"
+                      style={{ width: `${Math.max(uploadProgress, 2)}%` }}
+                    >
+                      {uploadProgress > 10 && (
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold">
+                          {uploadProgress}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>{formatBytes(uploadInfo.loaded)} / {formatBytes(uploadInfo.total)}</span>
+                    <span>{formatSpeed(uploadInfo.speed)}</span>
                   </div>
                 </div>
               ) : (
