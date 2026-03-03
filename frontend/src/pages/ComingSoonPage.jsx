@@ -4,8 +4,11 @@ import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Clock, Plus, Trash2, X, Image, Quote, Calendar,
-  ChevronLeft, ChevronRight, Sparkles, Upload, Type
+  ChevronLeft, ChevronRight, Sparkles, Upload, Type, MapPin, Navigation2
 } from 'lucide-react'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { format, differenceInDays } from 'date-fns'
@@ -102,9 +105,14 @@ export default function ComingSoonPage() {
         )}
       </AnimatePresence>
 
-      {/* Non-admin unrevealed: show only a beautiful teaser */}
+      {/* Non-admin unrevealed: show only a beautiful teaser + optional map */}
       {!isAdmin() && !page.is_revealed ? (
-        <ComingSoonTeaser page={page} />
+        <>
+          <ComingSoonTeaser page={page} />
+          {page.map_enabled && (
+            <RouteMap page={page} />
+          )}
+        </>
       ) : (
         <>
           {/* Description */}
@@ -130,8 +138,13 @@ export default function ComingSoonPage() {
             <FloatingQuotes quotes={page.quotes} />
           )}
 
+          {/* Route Map */}
+          {page.map_enabled && (
+            <RouteMap page={page} />
+          )}
+
           {/* Empty state if no content */}
-          {(!page.photos?.length && !page.quotes?.length) && (
+          {(!page.photos?.length && !page.quotes?.length && !page.map_enabled) && (
             <div className="card text-center py-16">
               <Sparkles className="w-16 h-16 mx-auto text-primary/30 mb-4" />
               <p className="text-gray-500 text-lg">
@@ -481,6 +494,172 @@ function FloatingQuotes({ quotes }) {
   )
 }
 
+// ============ MAP HELPERS ============
+
+function LocationMarker({ onLocationFound }) {
+  const map = useMap()
+  const [position, setPosition] = useState(null)
+
+  useEffect(() => {
+    map.locate({ setView: false, watch: false })
+    const handler = (e) => {
+      setPosition(e.latlng)
+      if (onLocationFound) onLocationFound(e.latlng)
+    }
+    map.on('locationfound', handler)
+    return () => { map.off('locationfound', handler) }
+  }, [map, onLocationFound])
+
+  if (!position) return null
+
+  const userIcon = L.divIcon({
+    className: '',
+    html: `<div style="width:18px;height:18px;background:#4285F4;border:3px solid white;border-radius:50%;box-shadow:0 0 0 5px rgba(66,133,244,0.3);"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  })
+  return <Marker position={position} icon={userIcon} />
+}
+
+function MapClickHandler({ onMapClick }) {
+  useMapEvents({ click: (e) => onMapClick && onMapClick(e.latlng) })
+  return null
+}
+
+function RouteMap({ page, adminClickMode = false, onMapClick }) {
+  const [userLocation, setUserLocation] = useState(null)
+
+  const destination = (page.map_destination_lat != null && page.map_destination_lng != null)
+    ? [parseFloat(page.map_destination_lat), parseFloat(page.map_destination_lng)]
+    : null
+
+  let waypoints = []
+  if (page.map_waypoints_json) {
+    try { waypoints = JSON.parse(page.map_waypoints_json) || [] } catch {}
+  }
+
+  const buildPolyline = () => {
+    const pts = []
+    if (userLocation) pts.push([userLocation.lat, userLocation.lng])
+    waypoints.forEach(wp => pts.push([parseFloat(wp.lat), parseFloat(wp.lng)]))
+    if (destination) pts.push(destination)
+    return pts
+  }
+
+  const center = destination
+    || (waypoints.length > 0 ? [parseFloat(waypoints[0].lat), parseFloat(waypoints[0].lng)] : [44.4268, 26.1025])
+  const zoom = destination ? 13 : 10
+
+  const destinationIcon = L.divIcon({
+    className: '',
+    html: `<div style="font-size:32px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">🏁</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
+  })
+
+  const waypointIcon = (index) => L.divIcon({
+    className: '',
+    html: `<div style="width:26px;height:26px;background:#db2777;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:white;box-shadow:0 2px 6px rgba(0,0,0,0.4);text-align:center;line-height:20px;">${index + 1}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  })
+
+  const polylinePoints = buildPolyline()
+
+  const openGoogleMaps = () => {
+    if (!destination) return
+    const waypointsParam = waypoints.length > 0
+      ? `&waypoints=${waypoints.map(wp => `${wp.lat},${wp.lng}`).join('|')}`
+      : ''
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination[0]},${destination[1]}${waypointsParam}&travelmode=driving`
+    window.open(url, '_blank')
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3"
+    >
+      {/* Romantic message */}
+      {page.map_message && (
+        <div
+          className="card text-center py-4 px-5"
+          style={{
+            background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-secondary-rgb), 0.08))',
+            border: '1px solid rgba(var(--color-primary-rgb), 0.2)',
+          }}
+        >
+          <MapPin className="w-5 h-5 text-primary mx-auto mb-2" />
+          <p className="text-text italic leading-relaxed">{page.map_message}</p>
+        </div>
+      )}
+
+      {/* Map container */}
+      <div className="rounded-2xl overflow-hidden shadow-lg" style={{ height: adminClickMode ? '300px' : '380px' }}>
+        <MapContainer
+          center={center}
+          zoom={zoom}
+          style={{ height: '100%', width: '100%' }}
+          attributionControl={false}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {adminClickMode && onMapClick && <MapClickHandler onMapClick={onMapClick} />}
+          {!adminClickMode && <LocationMarker onLocationFound={setUserLocation} />}
+
+          {/* Waypoint markers */}
+          {waypoints.map((wp, i) => (
+            <Marker key={i} position={[parseFloat(wp.lat), parseFloat(wp.lng)]} icon={waypointIcon(i)}>
+              {wp.label && <Popup>{wp.label}</Popup>}
+            </Marker>
+          ))}
+
+          {/* Destination marker */}
+          {destination && (
+            <Marker position={destination} icon={destinationIcon}>
+              {page.map_destination_name && <Popup>{page.map_destination_name}</Popup>}
+            </Marker>
+          )}
+
+          {/* Route polyline */}
+          {polylinePoints.length >= 2 && (
+            <Polyline
+              positions={polylinePoints}
+              pathOptions={{ color: '#db2777', weight: 4, opacity: 0.85, dashArray: '10, 8' }}
+            />
+          )}
+        </MapContainer>
+      </div>
+
+      {/* Open in Google Maps */}
+      {destination && !adminClickMode && (
+        <button
+          onClick={openGoogleMaps}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          <Navigation2 className="w-5 h-5" />
+          Deschide în Google Maps
+        </button>
+      )}
+
+      {/* Destination label */}
+      {destination && page.map_destination_name && (
+        <div className="text-center text-sm text-gray-500 flex items-center justify-center gap-1">
+          <MapPin className="w-4 h-4 text-primary/70" />
+          <span>Destinație: <span className="text-text font-medium">{page.map_destination_name}</span></span>
+        </div>
+      )}
+
+      {adminClickMode && (
+        <p className="text-xs text-center text-gray-400 italic">
+          Click pe hartă pentru a plasa coordonatele
+        </p>
+      )}
+    </motion.div>
+  )
+}
+
 // ============ ADMIN PANEL ============
 function AdminPanel({ page }) {
   const queryClient = useQueryClient()
@@ -491,6 +670,18 @@ function AdminPanel({ page }) {
   const [revealDate, setRevealDate] = useState(page.reveal_date)
   const [newQuote, setNewQuote] = useState('')
   const [newQuoteAuthor, setNewQuoteAuthor] = useState('')
+
+  // Map state
+  const [mapEnabled, setMapEnabled] = useState(page.map_enabled || false)
+  const [mapDestLat, setMapDestLat] = useState(page.map_destination_lat != null ? String(page.map_destination_lat) : '')
+  const [mapDestLng, setMapDestLng] = useState(page.map_destination_lng != null ? String(page.map_destination_lng) : '')
+  const [mapDestName, setMapDestName] = useState(page.map_destination_name || '')
+  const [mapWaypoints, setMapWaypoints] = useState(() => {
+    try { return JSON.parse(page.map_waypoints_json) || [] } catch { return [] }
+  })
+  const [mapMessage, setMapMessage] = useState(page.map_message || '')
+  const [clickMode, setClickMode] = useState('destination')
+  const [newWpLabel, setNewWpLabel] = useState('')
 
   const updateMutation = useMutation({
     mutationFn: async (data) => {
@@ -555,6 +746,29 @@ function AdminPanel({ page }) {
       toast.success('Citatul a fost șters')
     }
   })
+
+  const saveMapMutation = useMutation({
+    mutationFn: async (data) => {
+      return (await api.put(`/coming-soon/${page.id}`, data)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['coming-soon-active'])
+      queryClient.invalidateQueries(['coming-soon-page', String(page.id)])
+      toast.success('Harta a fost salvată!')
+    },
+    onError: () => toast.error('Eroare la salvarea hărții')
+  })
+
+  const handleSaveMap = () => {
+    saveMapMutation.mutate({
+      map_enabled: mapEnabled,
+      map_destination_lat: mapDestLat !== '' ? parseFloat(mapDestLat) : null,
+      map_destination_lng: mapDestLng !== '' ? parseFloat(mapDestLng) : null,
+      map_destination_name: mapDestName || null,
+      map_waypoints_json: mapWaypoints.length > 0 ? JSON.stringify(mapWaypoints) : null,
+      map_message: mapMessage || null,
+    })
+  }
 
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files)
@@ -777,6 +991,151 @@ function AdminPanel({ page }) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Map Configuration */}
+      <div className="card space-y-4">
+        <h3 className="font-semibold text-text flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-primary" />
+          Hartă & Rută
+        </h3>
+
+        {/* Enable toggle */}
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <div
+            onClick={() => setMapEnabled(!mapEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${mapEnabled ? 'bg-primary' : 'bg-gray-300'}`}
+          >
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${mapEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </div>
+          <span className="text-sm font-medium text-text">Activează harta pe pagină</span>
+        </label>
+
+        {/* Map message */}
+        <div>
+          <label className="block text-sm font-medium text-text mb-1">Mesaj romantic</label>
+          <textarea
+            value={mapMessage}
+            onChange={(e) => setMapMessage(e.target.value)}
+            className="input min-h-[60px]"
+            placeholder="Un mesaj special care apare deasupra hărții... ✨"
+            rows={2}
+          />
+        </div>
+
+        {/* Destination */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-text">Destinație finală</label>
+          <input
+            type="text"
+            value={mapDestName}
+            onChange={(e) => setMapDestName(e.target.value)}
+            className="input"
+            placeholder="Numele locului magic (ex: Locul magic ✨)"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              step="any"
+              value={mapDestLat}
+              onChange={(e) => setMapDestLat(e.target.value)}
+              className="input text-sm"
+              placeholder="Latitudine"
+            />
+            <input
+              type="number"
+              step="any"
+              value={mapDestLng}
+              onChange={(e) => setMapDestLng(e.target.value)}
+              className="input text-sm"
+              placeholder="Longitudine"
+            />
+          </div>
+        </div>
+
+        {/* Waypoints */}
+        <div>
+          <label className="block text-sm font-medium text-text mb-2">
+            Puncte de reper ({mapWaypoints.length})
+          </label>
+          {mapWaypoints.length > 0 && (
+            <div className="space-y-1 mb-2">
+              {mapWaypoints.map((wp, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                  <span className="w-5 h-5 bg-primary/20 text-primary rounded-full text-xs flex items-center justify-center font-bold flex-shrink-0">{i + 1}</span>
+                  <span className="flex-1 text-text truncate">{wp.label || `${parseFloat(wp.lat).toFixed(4)}, ${parseFloat(wp.lng).toFixed(4)}`}</span>
+                  <button
+                    onClick={() => setMapWaypoints(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-red-400 hover:text-red-600 flex-shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input
+            type="text"
+            value={newWpLabel}
+            onChange={(e) => setNewWpLabel(e.target.value)}
+            className="input text-sm"
+            placeholder="Label pentru următorul punct de reper (opțional)"
+          />
+          <p className="text-xs text-gray-400 mt-1">Selectează modul "Punct Reper" și click pe hartă pentru a adăuga</p>
+        </div>
+
+        {/* Click mode selector + preview map */}
+        <div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setClickMode('destination')}
+              className={`btn text-xs flex-1 ${clickMode === 'destination' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              <MapPin className="w-3.5 h-3.5 mr-1" />
+              Setează Destinație
+            </button>
+            <button
+              onClick={() => setClickMode('waypoint')}
+              className={`btn text-xs flex-1 ${clickMode === 'waypoint' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Punct Reper
+            </button>
+          </div>
+          <RouteMap
+            page={{
+              ...page,
+              map_enabled: mapEnabled,
+              map_destination_lat: mapDestLat !== '' ? parseFloat(mapDestLat) : null,
+              map_destination_lng: mapDestLng !== '' ? parseFloat(mapDestLng) : null,
+              map_destination_name: mapDestName,
+              map_waypoints_json: mapWaypoints.length > 0 ? JSON.stringify(mapWaypoints) : null,
+              map_message: null,
+            }}
+            adminClickMode={true}
+            onMapClick={(latlng) => {
+              if (clickMode === 'destination') {
+                setMapDestLat(latlng.lat.toFixed(6))
+                setMapDestLng(latlng.lng.toFixed(6))
+              } else {
+                setMapWaypoints(prev => [...prev, {
+                  lat: parseFloat(latlng.lat.toFixed(6)),
+                  lng: parseFloat(latlng.lng.toFixed(6)),
+                  label: newWpLabel || `Punct ${prev.length + 1}`,
+                }])
+                setNewWpLabel('')
+              }
+            }}
+          />
+        </div>
+
+        <button
+          onClick={handleSaveMap}
+          disabled={saveMapMutation.isPending}
+          className="btn btn-primary w-full"
+        >
+          {saveMapMutation.isPending ? 'Se salvează...' : 'Salvează Harta'}
+        </button>
       </div>
     </motion.div>
   )

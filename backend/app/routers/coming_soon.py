@@ -36,6 +36,12 @@ def _page_to_dict(page):
         "created_by": page.created_by,
         "created_at": page.created_at.isoformat() if page.created_at else None,
         "updated_at": page.updated_at.isoformat() if page.updated_at else None,
+        "map_enabled": page.map_enabled or False,
+        "map_destination_lat": page.map_destination_lat,
+        "map_destination_lng": page.map_destination_lng,
+        "map_destination_name": page.map_destination_name,
+        "map_waypoints_json": page.map_waypoints_json,
+        "map_message": page.map_message,
         "photos": [
             {
                 "id": p.id,
@@ -87,11 +93,12 @@ async def get_active_page(
     if not page:
         return None
     result = _page_to_dict(page)
-    # Non-admin users cannot see content of unrevealed pages
+    # Non-admin users cannot see content of unrevealed pages (except map data)
     if not current_user.is_admin and not page.is_revealed:
         result["photos"] = []
         result["quotes"] = []
         result["description"] = None
+        # Map data remains visible so the user can follow the route
     return result
 
 
@@ -119,11 +126,12 @@ async def get_page(
             detail="Pagina nu a fost găsită"
         )
     result = _page_to_dict(page)
-    # Non-admin users cannot see content of unrevealed pages
+    # Non-admin users cannot see content of unrevealed pages (except map data)
     if not current_user.is_admin and not page.is_revealed:
         result["photos"] = []
         result["quotes"] = []
         result["description"] = None
+        # Map data remains visible so the user can follow the route
     return result
 
 

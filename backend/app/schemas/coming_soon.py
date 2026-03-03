@@ -65,6 +65,12 @@ class ComingSoonPageUpdate(BaseModel):
     description: Optional[str] = None
     reveal_date: Optional[date] = None
     is_active: Optional[bool] = None
+    map_enabled: Optional[bool] = None
+    map_destination_lat: Optional[float] = None
+    map_destination_lng: Optional[float] = None
+    map_destination_name: Optional[str] = Field(None, max_length=200)
+    map_waypoints_json: Optional[str] = None
+    map_message: Optional[str] = None
 
 
 class ComingSoonPageResponse(ComingSoonPageBase):
@@ -78,6 +84,12 @@ class ComingSoonPageResponse(ComingSoonPageBase):
     updated_at: datetime
     photos: List[ComingSoonPhotoResponse] = []
     quotes: List[ComingSoonQuoteResponse] = []
+    map_enabled: bool = False
+    map_destination_lat: Optional[float] = None
+    map_destination_lng: Optional[float] = None
+    map_destination_name: Optional[str] = None
+    map_waypoints_json: Optional[str] = None
+    map_message: Optional[str] = None
 
     class Config:
         from_attributes = True

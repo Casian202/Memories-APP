@@ -3,7 +3,7 @@ Coming Soon page model.
 Admin can create a special page that shows "În curând" until a reveal date,
 then switches to showing its real name. Contains photos for slideshow and floating quotes.
 """
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime, date
 
@@ -23,6 +23,14 @@ class ComingSoonPage(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Map / Route fields
+    map_enabled = Column(Boolean, default=False)
+    map_destination_lat = Column(Float, nullable=True)
+    map_destination_lng = Column(Float, nullable=True)
+    map_destination_name = Column(String(200), nullable=True)
+    map_waypoints_json = Column(Text, nullable=True)  # JSON array of {lat, lng, label}
+    map_message = Column(Text, nullable=True)
 
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
