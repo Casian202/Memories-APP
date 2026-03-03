@@ -21,6 +21,7 @@ export default function ComingSoonPage() {
   const queryClient = useQueryClient()
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [previewMode, setPreviewMode] = useState(false)
 
   // If pageId is provided, fetch that specific page; otherwise fetch the active page
   const { data: page, isLoading } = useQuery({
@@ -89,24 +90,56 @@ export default function ComingSoonPage() {
           )}
         </div>
         {isAdmin() && (
-          <button
-            onClick={() => setShowAdminPanel(!showAdminPanel)}
-            className="btn btn-ghost text-sm"
-          >
-            {showAdminPanel ? 'Ascunde Admin' : 'Admin'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setPreviewMode(!previewMode)
+                if (!previewMode) setShowAdminPanel(false)
+              }}
+              className={`btn text-sm ${previewMode ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              {previewMode ? 'Ieși din Preview' : '👁 Preview'}
+            </button>
+            {!previewMode && (
+              <button
+                onClick={() => setShowAdminPanel(!showAdminPanel)}
+                className="btn btn-ghost text-sm"
+              >
+                {showAdminPanel ? 'Ascunde Admin' : 'Admin'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       {/* Admin Panel */}
       <AnimatePresence>
-        {showAdminPanel && isAdmin() && (
+        {showAdminPanel && isAdmin() && !previewMode && (
           <AdminPanel page={page} />
         )}
       </AnimatePresence>
 
-      {/* Non-admin unrevealed: show only a beautiful teaser + optional map */}
-      {!isAdmin() && !page.is_revealed ? (
+      {/* Preview mode banner */}
+      <AnimatePresence>
+        {previewMode && isAdmin() && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-xl px-4 py-2 text-sm font-medium text-center"
+            style={{
+              background: 'rgba(var(--color-primary-rgb), 0.12)',
+              border: '1px dashed rgba(var(--color-primary-rgb), 0.5)',
+              color: 'var(--color-primary)',
+            }}
+          >
+            👁 Mod Preview — exact ce vede partenera ta
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Non-admin unrevealed OR admin in preview mode: show teaser + map */}
+      {(!isAdmin() || previewMode) && !page.is_revealed ? (
         <>
           <ComingSoonTeaser page={page} />
           {page.map_enabled && (
