@@ -139,14 +139,9 @@ export default function ComingSoonPage() {
         )}
       </AnimatePresence>
 
-      {/* Non-admin unrevealed OR admin in preview mode: show teaser + map */}
+      {/* Non-admin unrevealed OR admin in preview mode: show teaser only */}
       {(!isAdmin() || previewMode) && !page.is_revealed ? (
-        <>
-          <ComingSoonTeaser page={page} />
-          {page.map_enabled && (
-            <RouteMap page={page} />
-          )}
-        </>
+        <ComingSoonTeaser page={page} />
       ) : (
         <>
           {/* Description */}
