@@ -52,7 +52,7 @@ class ComingSoonPage(Base):
 
 
 class ComingSoonPhoto(Base):
-    """Photos for Coming Soon slideshow."""
+    """Photos/videos for Coming Soon slideshow."""
     __tablename__ = "coming_soon_photos"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -62,6 +62,8 @@ class ComingSoonPhoto(Base):
     file_path = Column(String(500), nullable=False)
     file_size = Column(Integer, nullable=True)
     mime_type = Column(String(50), nullable=True)
+    media_type = Column(String(10), default="image")  # "image" or "video"
+    transcoding_status = Column(String(20), nullable=True)  # null, pending, processing, done, failed
     sort_order = Column(Integer, default=0)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -37,6 +37,8 @@ class ComingSoonPhotoResponse(BaseModel):
     file_path: str
     file_size: Optional[int]
     mime_type: Optional[str]
+    media_type: str = "image"
+    transcoding_status: Optional[str] = None
     sort_order: int
     uploaded_by: int
     created_at: datetime

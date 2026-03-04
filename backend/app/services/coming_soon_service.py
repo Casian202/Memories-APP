@@ -11,7 +11,10 @@ from fastapi import UploadFile, HTTPException, status
 
 from app.models.coming_soon import ComingSoonPage, ComingSoonPhoto, ComingSoonQuote
 from app.schemas.coming_soon import ComingSoonPageCreate, ComingSoonPageUpdate, ComingSoonQuoteCreate
-from app.utils.image_processor import validate_image, generate_filename, process_image, save_image
+from app.utils.image_processor import (
+    validate_media, is_video, generate_filename, process_image, save_image,
+    save_video_streaming, needs_transcoding
+)
 from app.config import settings
 
 
@@ -106,7 +109,7 @@ class ComingSoonService:
         files: List[UploadFile],
         user_id: int
     ) -> List[ComingSoonPhoto]:
-        """Upload photos for slideshow."""
+        """Upload photos/videos for slideshow."""
         uploaded = []
 
         # Get current max sort order
@@ -120,38 +123,54 @@ class ComingSoonService:
         sort_order = (last.sort_order + 1) if last else 0
 
         for file in files:
-            if not validate_image(file.content_type):
+            if not validate_media(file.content_type):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Tip fișier nepermis: {file.content_type}"
                 )
 
-            content = await file.read()
-            if len(content) > 50 * 1024 * 1024:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Fișier prea mare. Maxim 50MB"
-                )
-
-            try:
-                processed, width, height = await process_image(content, file.filename)
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Eroare la procesarea imaginii: {str(e)}"
-                )
-
             filename = generate_filename(file.filename)
             subfolder = f"coming_soon/{page_id}"
-            file_path = await save_image(processed, filename, subfolder)
+            media_type = "video" if is_video(file.content_type) else "image"
+
+            if media_type == "image":
+                content = await file.read()
+                if len(content) > 50 * 1024 * 1024:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Fișier prea mare. Maxim 50MB"
+                    )
+
+                try:
+                    processed, width, height = await process_image(content, file.filename)
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Eroare la procesarea imaginii: {str(e)}"
+                    )
+
+                file_path = await save_image(processed, filename, subfolder)
+                file_size = len(processed)
+                mime_type = "image/jpeg"
+                transcode_needed = False
+            else:
+                # Video: save using streaming to avoid memory issues
+                file_path, file_size = await save_video_streaming(
+                    file, filename, subfolder,
+                    max_size=500 * 1024 * 1024  # 500MB
+                )
+                mime_type = file.content_type
+                transcode_needed = needs_transcoding(file_path)
 
             photo = ComingSoonPhoto(
                 page_id=page_id,
                 filename=filename,
                 original_filename=file.filename,
                 file_path=file_path,
-                file_size=len(processed),
-                mime_type="image/jpeg",
+                file_size=file_size,
+                mime_type=mime_type,
+                media_type=media_type,
+                transcoding_status="pending" if transcode_needed else ("done" if media_type == "video" else None),
                 sort_order=sort_order,
                 uploaded_by=user_id
             )
@@ -160,8 +179,14 @@ class ComingSoonService:
             sort_order += 1
 
         await db.commit()
+
+        # Start background transcoding for videos that need it
         for p in uploaded:
             await db.refresh(p)
+            if p.media_type == "video" and p.transcoding_status == "pending":
+                from app.services.transcode_service import start_coming_soon_background_transcode
+                start_coming_soon_background_transcode(p.id, p.file_path, f"coming_soon/{page_id}")
+
         return uploaded
 
     @staticmethod

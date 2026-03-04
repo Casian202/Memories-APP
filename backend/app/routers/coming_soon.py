@@ -51,6 +51,8 @@ def _page_to_dict(page):
                 "file_path": p.file_path,
                 "file_size": p.file_size,
                 "mime_type": p.mime_type,
+                "media_type": getattr(p, 'media_type', 'image') or 'image',
+                "transcoding_status": getattr(p, 'transcoding_status', None),
                 "sort_order": p.sort_order,
                 "uploaded_by": p.uploaded_by,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -218,7 +220,7 @@ async def upload_photos(
         )
     photos = await ComingSoonService.upload_photos(db, page_id, files, current_user.id)
     return {
-        "message": f"{len(photos)} foto-uri încărcate cu succes",
+        "message": f"{len(photos)} fișiere încărcate cu succes",
         "photos": [
             {
                 "id": p.id,
@@ -227,6 +229,8 @@ async def upload_photos(
                 "original_filename": p.original_filename,
                 "file_path": p.file_path,
                 "file_size": p.file_size,
+                "media_type": getattr(p, 'media_type', 'image') or 'image',
+                "transcoding_status": getattr(p, 'transcoding_status', None),
                 "sort_order": p.sort_order,
             }
             for p in photos

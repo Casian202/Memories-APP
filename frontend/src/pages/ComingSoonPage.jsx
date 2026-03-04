@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Clock, Plus, Trash2, X, Image, Quote, Calendar,
   ChevronLeft, ChevronRight, Sparkles, Upload, Type, MapPin, Navigation2,
-  CheckCircle, ChevronUp, ChevronDown, RotateCcw, Heart
+  CheckCircle, ChevronUp, ChevronDown, RotateCcw, Heart, Film, Lock
 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -143,6 +143,63 @@ export default function ComingSoonPage() {
       {(!isAdmin() || previewMode) && !page.is_revealed ? (
         <ComingSoonTeaser page={page} />
       ) : (
+        <RevealedContent page={page} isAdminView={isAdmin() && !previewMode} />
+      )}
+    </div>
+  )
+}
+
+// ============ REVEALED CONTENT (after reveal date) ============
+function RevealedContent({ page, isAdminView }) {
+  // Check route completion from localStorage
+  const progressKey = `hunt-progress-${page.id}`
+  const [routeCompleted, setRouteCompleted] = useState(() => {
+    if (!page.map_enabled) return true // no map = content visible immediately
+    try {
+      const waypoints = JSON.parse(page.map_waypoints_json || '[]')
+      const hasDest = page.map_destination_lat != null && page.map_destination_lng != null
+      const totalStops = waypoints.length + (hasDest ? 1 : 0)
+      if (totalStops === 0) return true
+      const progress = parseInt(localStorage.getItem(progressKey) || '0', 10)
+      return progress >= totalStops
+    } catch { return false }
+  })
+
+  // Re-check on storage changes (RouteMap updates localStorage)
+  useEffect(() => {
+    const check = () => {
+      if (!page.map_enabled) { setRouteCompleted(true); return }
+      try {
+        const waypoints = JSON.parse(page.map_waypoints_json || '[]')
+        const hasDest = page.map_destination_lat != null && page.map_destination_lng != null
+        const totalStops = waypoints.length + (hasDest ? 1 : 0)
+        if (totalStops === 0) { setRouteCompleted(true); return }
+        const progress = parseInt(localStorage.getItem(progressKey) || '0', 10)
+        setRouteCompleted(progress >= totalStops)
+      } catch { /* keep current state */ }
+    }
+    // Listen for storage events and custom events
+    window.addEventListener('storage', check)
+    window.addEventListener('route-progress-updated', check)
+    const interval = setInterval(check, 1000) // poll fallback
+    return () => {
+      window.removeEventListener('storage', check)
+      window.removeEventListener('route-progress-updated', check)
+      clearInterval(interval)
+    }
+  }, [page, progressKey])
+
+  const showContent = isAdminView || routeCompleted
+
+  return (
+    <>
+      {/* Route Map — always visible after reveal if enabled */}
+      {page.map_enabled && (
+        <RouteMap page={page} />
+      )}
+
+      {/* Content gated behind route completion */}
+      {showContent ? (
         <>
           {/* Description */}
           {page.description && (
@@ -157,7 +214,7 @@ export default function ComingSoonPage() {
             </motion.div>
           )}
 
-          {/* Photo Slideshow */}
+          {/* Photo/Video Slideshow */}
           {page.photos?.length > 0 && (
             <PhotoSlideshow photos={page.photos} />
           )}
@@ -166,26 +223,36 @@ export default function ComingSoonPage() {
           {page.quotes?.length > 0 && (
             <FloatingQuotes quotes={page.quotes} />
           )}
-
-          {/* Route Map */}
-          {page.map_enabled && (
-            <RouteMap page={page} />
-          )}
-
-          {/* Empty state if no content */}
-          {(!page.photos?.length && !page.quotes?.length && !page.map_enabled) && (
-            <div className="card text-center py-16">
-              <Sparkles className="w-16 h-16 mx-auto text-primary/30 mb-4" />
-              <p className="text-gray-500 text-lg">
-                {page.is_revealed
-                  ? 'Conținutul va fi adăugat în curând...'
-                  : 'Ceva special se pregătește...'}
-              </p>
-            </div>
-          )}
         </>
+      ) : page.map_enabled ? (
+        /* Hint that content is locked behind route completion */
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card text-center py-8"
+          style={{
+            background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb),0.06), rgba(var(--color-secondary-rgb),0.06))',
+            border: '1px dashed rgba(var(--color-primary-rgb),0.3)',
+          }}
+        >
+          <Lock className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--color-primary)', opacity: 0.5 }} />
+          <p className="text-text font-medium mb-1">Mai sunt surprize pentru tine...</p>
+          <p className="text-gray-500 text-sm">Finalizează ruta pentru a descoperi restul conținutului 💝</p>
+        </motion.div>
+      ) : null}
+
+      {/* Empty state if no content at all */}
+      {showContent && !page.photos?.length && !page.quotes?.length && !page.map_enabled && !page.description && (
+        <div className="card text-center py-16">
+          <Sparkles className="w-16 h-16 mx-auto text-primary/30 mb-4" />
+          <p className="text-gray-500 text-lg">
+            {page.is_revealed
+              ? 'Conținutul va fi adăugat în curând...'
+              : 'Ceva special se pregătește...'}
+          </p>
+        </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -372,33 +439,50 @@ function CountdownBanner({ revealDate }) {
   )
 }
 
-// ============ PHOTO SLIDESHOW ============
+// ============ PHOTO/VIDEO SLIDESHOW ============
 function PhotoSlideshow({ photos }) {
   const [current, setCurrent] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
+  const [videoPlaying, setVideoPlaying] = useState(false)
   const intervalRef = useRef(null)
+  const videoRef = useRef(null)
+
+  const currentItem = photos[current]
+  const isCurrentVideo = currentItem?.media_type === 'video'
 
   const nextSlide = useCallback(() => {
     setCurrent(c => (c + 1) % photos.length)
+    setVideoPlaying(false)
   }, [photos.length])
 
   const prevSlide = useCallback(() => {
     setCurrent(c => (c - 1 + photos.length) % photos.length)
+    setVideoPlaying(false)
   }, [photos.length])
 
-  // Auto-play
+  // Auto-play (pauses on video)
   useEffect(() => {
-    if (isAutoPlaying && photos.length > 1) {
+    if (isAutoPlaying && photos.length > 1 && !isCurrentVideo) {
       intervalRef.current = setInterval(nextSlide, 5000)
       return () => clearInterval(intervalRef.current)
     }
-  }, [isAutoPlaying, nextSlide, photos.length])
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [isAutoPlaying, nextSlide, photos.length, isCurrentVideo])
 
   const handleManualNav = (fn) => {
     setIsAutoPlaying(false)
     fn()
     // Resume auto-play after 10 seconds
     setTimeout(() => setIsAutoPlaying(true), 10000)
+  }
+
+  // When video ends, advance to next slide
+  const handleVideoEnded = () => {
+    setVideoPlaying(false)
+    if (photos.length > 1) {
+      nextSlide()
+      setIsAutoPlaying(true)
+    }
   }
 
   return (
@@ -409,33 +493,71 @@ function PhotoSlideshow({ photos }) {
       style={{ aspectRatio: '16/9' }}
     >
       <AnimatePresence mode="wait">
-        <motion.img
-          key={photos[current].id}
-          src={`/photos/${photos[current].file_path}`}
-          alt=""
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.8 }}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        {isCurrentVideo ? (
+          <motion.div
+            key={currentItem.id}
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.8 }}
+            className="absolute inset-0 w-full h-full bg-black"
+          >
+            {currentItem.transcoding_status === 'pending' || currentItem.transcoding_status === 'processing' ? (
+              <div className="flex items-center justify-center w-full h-full">
+                <div className="text-center text-white">
+                  <div className="w-10 h-10 border-3 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-sm opacity-70">Se procesează videoclipul...</p>
+                </div>
+              </div>
+            ) : currentItem.transcoding_status === 'failed' ? (
+              <div className="flex items-center justify-center w-full h-full">
+                <p className="text-white text-sm opacity-70">Videoclipul nu a putut fi procesat</p>
+              </div>
+            ) : (
+              <video
+                ref={videoRef}
+                src={`/photos/${currentItem.file_path}`}
+                className="w-full h-full object-contain"
+                controls
+                autoPlay
+                playsInline
+                onPlay={() => setVideoPlaying(true)}
+                onPause={() => setVideoPlaying(false)}
+                onEnded={handleVideoEnded}
+              />
+            )}
+          </motion.div>
+        ) : (
+          <motion.img
+            key={currentItem.id}
+            src={`/photos/${currentItem.file_path}`}
+            alt=""
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.8 }}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
       </AnimatePresence>
 
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+      {/* Gradient overlay (only on images) */}
+      {!isCurrentVideo && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+      )}
 
       {/* Navigation arrows */}
       {photos.length > 1 && (
         <>
           <button
             onClick={() => handleManualNav(prevSlide)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors"
+            className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors z-10"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={() => handleManualNav(nextSlide)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors z-10"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -444,8 +566,8 @@ function PhotoSlideshow({ photos }) {
 
       {/* Dots indicator */}
       {photos.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-          {photos.map((_, i) => (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+          {photos.map((p, i) => (
             <button
               key={i}
               onClick={() => handleManualNav(() => setCurrent(i))}
@@ -658,6 +780,8 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
       const next = currentStep + 1
       setCurrentStep(next)
       localStorage.setItem(progressKey, String(next))
+      // Notify RevealedContent about progress change
+      window.dispatchEvent(new Event('route-progress-updated'))
       setConfirming(false)
       setJustConfirmed(false)
     }, 1400)
@@ -666,6 +790,7 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
   const handleReset = () => {
     localStorage.removeItem(progressKey)
     setCurrentStep(0)
+    window.dispatchEvent(new Event('route-progress-updated'))
   }
 
   const openGoogleMapsToStop = () => {
@@ -691,25 +816,41 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
         </motion.div>
       )}
 
-      {/* Progress stepper */}
+      {/* Progress stepper — only show completed + current, then '...' so total stays hidden */}
       {allStops.length > 1 && (
         <div className="flex items-center justify-center gap-1.5 flex-wrap px-2">
-          {allStops.map((s, i) => (
+          {/* Completed stops */}
+          {Array.from({ length: currentStep }).map((_, i) => (
             <div key={i} className="flex items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-500 ${
-                i < currentStep
-                  ? 'bg-green-500 border-green-500 text-white'
-                  : i === currentStep
-                  ? 'bg-primary border-primary text-white scale-110 shadow-md'
-                  : 'bg-gray-100 border-gray-300 text-gray-400 dark:bg-gray-800'
-              }`}>
-                {i < currentStep ? '✓' : s.isFinal ? '🏁' : i + 1}
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 bg-green-500 border-green-500 text-white transition-all duration-500">
+                ✓
               </div>
-              {i < allStops.length - 1 && (
-                <div className={`h-0.5 w-4 sm:w-6 rounded transition-all duration-500 ${i < currentStep ? 'bg-green-400' : 'bg-gray-200'}`} />
-              )}
+              <div className="h-0.5 w-4 sm:w-6 rounded bg-green-400" />
             </div>
           ))}
+          {/* Current stop */}
+          {!isFinished && (
+            <div className="flex items-center gap-1">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 bg-primary border-primary text-white scale-110 shadow-md transition-all duration-500">
+                {stop?.isFinal ? '🏁' : currentStep + 1}
+              </div>
+              {/* Ellipsis to hint more stops ahead without revealing count */}
+              {!stop?.isFinal && (
+                <>
+                  <div className="h-0.5 w-4 sm:w-6 rounded bg-gray-200" />
+                  <div className="flex gap-0.5">
+                    {[0,1,2].map(d => (
+                      <div key={d} className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {/* Finished */}
+          {isFinished && (
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 bg-green-500 border-green-500 text-white">✓</div>
+          )}
         </div>
       )}
 
@@ -762,7 +903,7 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
                 </div>
                 <div>
                   <div className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-                    {stop.isFinal ? 'Destinație finală' : `Punct ${currentStep + 1} din ${allStops.length}`}
+                    {stop.isFinal ? 'Destinație finală' : `Punct ${currentStep + 1} din ?`}
                   </div>
                   <div className="font-semibold text-text">{stop.label || `Punct ${currentStep + 1}`}</div>
                 </div>
@@ -1072,11 +1213,11 @@ function AdminPanel({ page }) {
         )}
       </div>
 
-      {/* Photos Management */}
+      {/* Photos/Videos Management */}
       <div className="card space-y-3">
         <h3 className="font-semibold text-text flex items-center gap-2">
           <Image className="w-5 h-5" />
-          Poze Slideshow ({page.photos?.length || 0})
+          Poze & Videoclipuri ({page.photos?.length || 0})
         </h3>
 
         {/* Upload */}
@@ -1084,7 +1225,7 @@ function AdminPanel({ page }) {
           <input
             type="file"
             multiple
-            accept="image/*"
+            accept="image/*,video/*"
             className="hidden"
             onChange={handleFileUpload}
             disabled={uploadPhotosMutation.isPending}
@@ -1095,22 +1236,38 @@ function AdminPanel({ page }) {
             ) : (
               <>
                 <Upload className="w-5 h-5" />
-                <span className="text-sm">Adaugă poze</span>
+                <span className="text-sm">Adaugă poze / videoclipuri</span>
               </>
             )}
           </div>
         </label>
 
-        {/* Photo thumbnails */}
+        {/* Photo/video thumbnails */}
         {page.photos?.length > 0 && (
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
             {page.photos.map((photo) => (
               <div key={photo.id} className="relative aspect-square group">
-                <img
-                  src={`/photos/${photo.file_path}`}
-                  alt=""
-                  className="w-full h-full object-cover rounded-lg"
-                />
+                {photo.media_type === 'video' ? (
+                  <div className="w-full h-full bg-gray-900 rounded-lg flex items-center justify-center relative overflow-hidden">
+                    <Film className="w-6 h-6 text-white/60" />
+                    {photo.transcoding_status === 'pending' || photo.transcoding_status === 'processing' ? (
+                      <div className="absolute bottom-1 left-1 right-1 text-center">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+                        <span className="text-[9px] text-white/60">procesare...</span>
+                      </div>
+                    ) : photo.transcoding_status === 'failed' ? (
+                      <div className="absolute bottom-1 left-1 right-1 text-center">
+                        <span className="text-[9px] text-red-400">eroare</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <img
+                    src={`/photos/${photo.file_path}`}
+                    alt=""
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                )}
                 <button
                   onClick={() => deletePhotoMutation.mutate(photo.id)}
                   className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"

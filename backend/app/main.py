@@ -70,6 +70,17 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("ALTER TABLE coming_soon_pages ADD COLUMN map_waypoints_json TEXT"))
             await conn.execute(text("ALTER TABLE coming_soon_pages ADD COLUMN map_message TEXT"))
             print("Added map columns to coming_soon_pages table")
+        # Add media_type and transcoding_status to coming_soon_photos if not exists
+        try:
+            await conn.execute(text("SELECT media_type FROM coming_soon_photos LIMIT 1"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE coming_soon_photos ADD COLUMN media_type VARCHAR(10) DEFAULT 'image'"))
+            print("Added media_type column to coming_soon_photos table")
+        try:
+            await conn.execute(text("SELECT transcoding_status FROM coming_soon_photos LIMIT 1"))
+        except Exception:
+            await conn.execute(text("ALTER TABLE coming_soon_photos ADD COLUMN transcoding_status VARCHAR(20)"))
+            print("Added transcoding_status column to coming_soon_photos table")
     print("Migrations complete.")
 
     # Initialize JSON user storage
