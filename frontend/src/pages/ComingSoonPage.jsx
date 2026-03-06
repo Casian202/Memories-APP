@@ -768,10 +768,20 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
   })
   const [confirming, setConfirming] = useState(false)
   const [justConfirmed, setJustConfirmed] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
 
   const isFinished = currentStep >= allStops.length
   const stop = isFinished ? null : allStops[currentStep]
   const stopPos = stop ? [parseFloat(stop.lat), parseFloat(stop.lng)] : null
+
+  // Auto-dismiss celebration after 5 seconds
+  useEffect(() => {
+    if (isFinished) {
+      setShowCelebration(true)
+      const timer = setTimeout(() => setShowCelebration(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [isFinished])
 
   const handleConfirm = () => {
     setConfirming(true)
@@ -855,31 +865,34 @@ function RouteMap({ page, adminClickMode = false, onMapClick }) {
       )}
 
       {/* Finished! */}
-      {isFinished ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200 }}
-          className="card text-center py-10 px-6"
-          style={{
-            background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb),0.1),rgba(var(--color-secondary-rgb),0.1))',
-            border: '2px solid rgba(var(--color-primary-rgb),0.3)',
-          }}
-        >
+      {isFinished && showCelebration ? (
+        <AnimatePresence>
           <motion.div
-            animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="text-5xl mb-4"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'spring', stiffness: 200 }}
+            className="card text-center py-10 px-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb),0.1),rgba(var(--color-secondary-rgb),0.1))',
+              border: '2px solid rgba(var(--color-primary-rgb),0.3)',
+            }}
           >
-            💍
+            <motion.div
+              animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-5xl mb-4"
+            >
+              💍
+            </motion.div>
+            <h2 className="text-2xl font-bold text-text mb-2">Ai ajuns! ✨</h2>
+            <p className="text-gray-500 mb-6">Ai urmat toate punctele rutei. Momentul magic te așteaptă!</p>
+            <button onClick={handleReset} className="btn btn-ghost text-xs text-gray-400 flex items-center gap-1 mx-auto">
+              <RotateCcw className="w-3.5 h-3.5" /> Resetează ruta
+            </button>
           </motion.div>
-          <h2 className="text-2xl font-bold text-text mb-2">Ai ajuns! ✨</h2>
-          <p className="text-gray-500 mb-6">Ai urmat toate punctele rutei. Momentul magic te așteaptă!</p>
-          <button onClick={handleReset} className="btn btn-ghost text-xs text-gray-400 flex items-center gap-1 mx-auto">
-            <RotateCcw className="w-3.5 h-3.5" /> Resetează ruta
-          </button>
-        </motion.div>
-      ) : (
+        </AnimatePresence>
+      ) : isFinished ? null : (
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
