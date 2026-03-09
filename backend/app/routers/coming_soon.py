@@ -1,12 +1,17 @@
 """
 Coming Soon page routes.
 """
+import os
+import uuid
+import json
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
+import aiofiles
 
 from app.database import get_db
 from app.models.user import User
+from app.models.coming_soon import ComingSoonPhoto
 from app.schemas.coming_soon import (
     ComingSoonPageCreate,
     ComingSoonPageUpdate,
@@ -18,6 +23,8 @@ from app.schemas.coming_soon import (
 )
 from app.services.coming_soon_service import ComingSoonService
 from app.utils.security import get_current_user, get_admin_user
+from app.utils.image_processor import validate_media, is_video, generate_filename
+from app.config import settings
 
 router = APIRouter()
 
@@ -285,3 +292,219 @@ async def delete_quote(
     """Delete a quote (admin only)."""
     await ComingSoonService.delete_quote(db, quote_id)
     return {"message": "Citatul a fost șters"}
+
+
+# ---- Chunked Upload Endpoints for Coming Soon ----
+
+@router.post("/{page_id}/upload/init")
+async def init_chunked_upload(
+    page_id: int,
+    filename: str = Form(...),
+    file_size: int = Form(...),
+    content_type: str = Form(...),
+    total_chunks: int = Form(...),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Initialize a chunked upload session for large files."""
+    page = await ComingSoonService.get_page_by_id(db, page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail="Pagina nu a fost găsită")
+
+    if not validate_media(content_type):
+        raise HTTPException(status_code=400, detail=f"Tip fișier nepermis: {content_type}")
+
+    max_size = 500 * 1024 * 1024
+    if file_size > max_size:
+        raise HTTPException(status_code=400, detail="Fișier prea mare. Maxim 500MB")
+
+    upload_id = str(uuid.uuid4())
+    temp_dir = os.path.join(settings.UPLOAD_DIR, "temp", upload_id)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    meta = {
+        "upload_id": upload_id,
+        "page_id": page_id,
+        "user_id": current_user.id,
+        "original_filename": filename,
+        "content_type": content_type,
+        "file_size": file_size,
+        "total_chunks": total_chunks,
+        "received_chunks": [],
+        "type": "coming_soon",
+    }
+    meta_path = os.path.join(temp_dir, "meta.json")
+    async with aiofiles.open(meta_path, "w") as f:
+        await f.write(json.dumps(meta))
+
+    return {"upload_id": upload_id, "message": "Upload inițializat"}
+
+
+@router.post("/{page_id}/upload/{upload_id}/chunk")
+async def upload_chunk(
+    page_id: int,
+    upload_id: str,
+    chunk_index: int = Form(...),
+    chunk: UploadFile = File(...),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload a single chunk of a file."""
+    try:
+        uuid.UUID(upload_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid upload_id")
+
+    temp_dir = os.path.join(settings.UPLOAD_DIR, "temp", upload_id)
+    meta_path = os.path.join(temp_dir, "meta.json")
+
+    if not os.path.exists(meta_path):
+        raise HTTPException(status_code=404, detail="Upload session nu există sau a expirat")
+
+    async with aiofiles.open(meta_path, "r") as f:
+        meta = json.loads(await f.read())
+
+    if meta["page_id"] != page_id:
+        raise HTTPException(status_code=400, detail="Page ID nu se potrivește")
+
+    chunk_path = os.path.join(temp_dir, f"chunk_{chunk_index:06d}")
+    content = await chunk.read()
+    async with aiofiles.open(chunk_path, "wb") as f:
+        await f.write(content)
+
+    if chunk_index not in meta["received_chunks"]:
+        meta["received_chunks"].append(chunk_index)
+        meta["received_chunks"].sort()
+    async with aiofiles.open(meta_path, "w") as f:
+        await f.write(json.dumps(meta))
+
+    received = len(meta["received_chunks"])
+    total = meta["total_chunks"]
+
+    return {
+        "chunk_index": chunk_index,
+        "received": received,
+        "total": total,
+        "complete": received >= total
+    }
+
+
+@router.post("/{page_id}/upload/{upload_id}/complete")
+async def complete_chunked_upload(
+    page_id: int,
+    upload_id: str,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Assemble chunks and finalize the upload."""
+    try:
+        uuid.UUID(upload_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid upload_id")
+
+    temp_dir = os.path.join(settings.UPLOAD_DIR, "temp", upload_id)
+    meta_path = os.path.join(temp_dir, "meta.json")
+
+    if not os.path.exists(meta_path):
+        raise HTTPException(status_code=404, detail="Upload session nu există")
+
+    async with aiofiles.open(meta_path, "r") as f:
+        meta = json.loads(await f.read())
+
+    if meta["page_id"] != page_id:
+        raise HTTPException(status_code=400, detail="Page ID nu se potrivește")
+
+    received = len(meta["received_chunks"])
+    total = meta["total_chunks"]
+    if received < total:
+        raise HTTPException(status_code=400, detail=f"Lipsesc chunk-uri: {received}/{total}")
+
+    final_filename = generate_filename(meta["original_filename"])
+    subfolder = f"coming_soon/{page_id}"
+    final_dir = os.path.join(settings.UPLOAD_DIR, subfolder)
+    os.makedirs(final_dir, exist_ok=True)
+    final_path = os.path.join(final_dir, final_filename)
+
+    # Assemble chunks
+    total_size = 0
+    async with aiofiles.open(final_path, "wb") as out_f:
+        for i in range(total):
+            chunk_path = os.path.join(temp_dir, f"chunk_{i:06d}")
+            if not os.path.exists(chunk_path):
+                raise HTTPException(status_code=400, detail=f"Chunk {i} lipsește")
+            async with aiofiles.open(chunk_path, "rb") as chunk_f:
+                data = await chunk_f.read()
+                total_size += len(data)
+                await out_f.write(data)
+
+    # Clean up temp
+    import shutil
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+    content_type = meta["content_type"]
+    media_type = "video" if is_video(content_type) else "image"
+
+    if media_type == "image":
+        from app.utils.image_processor import process_image
+        async with aiofiles.open(final_path, "rb") as f:
+            raw_data = await f.read()
+        try:
+            processed, width, height = await process_image(raw_data, meta["original_filename"])
+            async with aiofiles.open(final_path, "wb") as f:
+                await f.write(processed)
+            total_size = len(processed)
+        except Exception:
+            pass
+
+    rel_path = os.path.join(subfolder, final_filename)
+
+    transcode_needed = False
+    if media_type == "video":
+        from app.utils.image_processor import needs_transcoding
+        transcode_needed = needs_transcoding(rel_path)
+
+    # Get next sort order
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(ComingSoonPhoto)
+        .where(ComingSoonPhoto.page_id == page_id)
+        .order_by(ComingSoonPhoto.sort_order.desc())
+        .limit(1)
+    )
+    last = result.scalars().first()
+    sort_order = (last.sort_order + 1) if last else 0
+
+    photo = ComingSoonPhoto(
+        page_id=page_id,
+        filename=final_filename,
+        original_filename=meta["original_filename"],
+        file_path=rel_path,
+        file_size=total_size,
+        mime_type=content_type if media_type == "video" else "image/jpeg",
+        media_type=media_type,
+        transcoding_status="pending" if transcode_needed else ("done" if media_type == "video" else None),
+        sort_order=sort_order,
+        uploaded_by=current_user.id
+    )
+    db.add(photo)
+    await db.commit()
+    await db.refresh(photo)
+
+    if transcode_needed:
+        from app.services.transcode_service import start_coming_soon_background_transcode
+        start_coming_soon_background_transcode(photo.id, rel_path, subfolder)
+
+    return {
+        "message": "Fișier încărcat cu succes",
+        "photo": {
+            "id": photo.id,
+            "page_id": photo.page_id,
+            "filename": photo.filename,
+            "original_filename": photo.original_filename,
+            "file_path": photo.file_path,
+            "file_size": photo.file_size,
+            "media_type": photo.media_type,
+            "transcoding_status": photo.transcoding_status,
+            "sort_order": photo.sort_order,
+        }
+    }

@@ -34,6 +34,15 @@ export default function ComingSoonPage() {
       }
       const response = await api.get('/coming-soon/active')
       return response.data
+    },
+    // Auto-refetch every 5s while any video is still transcoding
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data || !data.photos) return false
+      const hasTranscoding = data.photos.some(p =>
+        p.transcoding_status === 'pending' || p.transcoding_status === 'processing'
+      )
+      return hasTranscoding ? 5000 : false
     }
   })
 
@@ -1011,6 +1020,8 @@ function AdminPanel({ page }) {
   const [revealDate, setRevealDate] = useState(page.reveal_date)
   const [newQuote, setNewQuote] = useState('')
   const [newQuoteAuthor, setNewQuoteAuthor] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadInfo, setUploadInfo] = useState({ loaded: 0, total: 0, speed: 0 })
 
   // Map state
   const [mapEnabled, setMapEnabled] = useState(page.map_enabled || false)
@@ -1024,6 +1035,73 @@ function AdminPanel({ page }) {
   const [clickMode, setClickMode] = useState('waypoint')
   const [newWpLabel, setNewWpLabel] = useState('')
   const [newWpHint, setNewWpHint] = useState('')
+
+  // Chunked upload constants
+  const CHUNK_SIZE = 10 * 1024 * 1024 // 10MB per chunk
+  const CHUNKED_THRESHOLD = 50 * 1024 * 1024 // Files > 50MB use chunked upload
+
+  const uploadFileChunked = async (file, startTime, totalSizeAllFiles, prevLoaded) => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+
+    const initForm = new FormData()
+    initForm.append('filename', file.name)
+    initForm.append('file_size', file.size.toString())
+    initForm.append('content_type', file.type || 'application/octet-stream')
+    initForm.append('total_chunks', totalChunks.toString())
+
+    const initRes = await api.post(`/coming-soon/${page.id}/upload/init`, initForm, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000
+    })
+    const uploadId = initRes.data.upload_id
+
+    let uploadedBytes = 0
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const blob = file.slice(start, end)
+
+      const chunkForm = new FormData()
+      chunkForm.append('chunk_index', i.toString())
+      chunkForm.append('chunk', blob, `chunk_${i}`)
+
+      await api.post(`/coming-soon/${page.id}/upload/${uploadId}/chunk`, chunkForm, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+        onUploadProgress: (progressEvent) => {
+          const chunkLoaded = progressEvent.loaded || 0
+          const currentTotal = prevLoaded + uploadedBytes + chunkLoaded
+          const percent = totalSizeAllFiles > 0 ? Math.round((currentTotal * 100) / totalSizeAllFiles) : 0
+          const elapsed = (Date.now() - startTime) / 1000
+          const speed = elapsed > 0 ? currentTotal / elapsed : 0
+
+          setUploadProgress(Math.min(percent, 99))
+          setUploadInfo({ loaded: currentTotal, total: totalSizeAllFiles, speed })
+        }
+      })
+
+      uploadedBytes += (end - start)
+    }
+
+    const completeRes = await api.post(`/coming-soon/${page.id}/upload/${uploadId}/complete`, null, {
+      timeout: 120000
+    })
+
+    return completeRes.data
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  const formatSpeed = (bytesPerSec) => {
+    if (bytesPerSec === 0) return '...'
+    return formatBytes(bytesPerSec) + '/s'
+  }
 
   const updateMutation = useMutation({
     mutationFn: async (data) => {
@@ -1041,18 +1119,69 @@ function AdminPanel({ page }) {
 
   const uploadPhotosMutation = useMutation({
     mutationFn: async (files) => {
-      const formData = new FormData()
-      files.forEach(f => formData.append('files', f))
-      return (await api.post(`/coming-soon/${page.id}/photos`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })).data
+      setUploadProgress(0)
+      setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+
+      const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+      const startTime = Date.now()
+
+      const smallFiles = files.filter(f => f.size <= CHUNKED_THRESHOLD)
+      const largeFiles = files.filter(f => f.size > CHUNKED_THRESHOLD)
+
+      const results = []
+      let totalUploaded = 0
+
+      // Upload large files one by one using chunked upload
+      for (const file of largeFiles) {
+        const result = await uploadFileChunked(file, startTime, totalSize, totalUploaded)
+        results.push(result)
+        totalUploaded += file.size
+      }
+
+      // Upload small files together in one request
+      if (smallFiles.length > 0) {
+        const formData = new FormData()
+        smallFiles.forEach(f => formData.append('files', f))
+        const response = await api.post(`/coming-soon/${page.id}/photos`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 900000,
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+          onUploadProgress: (progressEvent) => {
+            const total = progressEvent.total || smallFiles.reduce((s, f) => s + f.size, 0)
+            const loaded = progressEvent.loaded || 0
+            const currentTotal = totalUploaded + loaded
+            const percent = totalSize > 0 ? Math.round((currentTotal * 100) / totalSize) : 0
+            const elapsed = (Date.now() - startTime) / 1000
+            const speed = elapsed > 0 ? currentTotal / elapsed : 0
+
+            setUploadProgress(Math.min(percent, 99))
+            setUploadInfo({ loaded: currentTotal, total: totalSize, speed })
+          }
+        })
+        results.push(response.data)
+      }
+
+      return results
     },
     onSuccess: () => {
+      setUploadProgress(100)
+      setTimeout(() => {
+        setUploadProgress(0)
+        setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+      }, 500)
       queryClient.invalidateQueries(['coming-soon-active'])
       queryClient.invalidateQueries(['coming-soon-page', String(page.id)])
-      toast.success('Pozele au fost încărcate!')
+      toast.success('Fișierele au fost încărcate cu succes!')
     },
-    onError: () => toast.error('Eroare la încărcarea pozelor')
+    onError: (error) => {
+      setUploadProgress(0)
+      setUploadInfo({ loaded: 0, total: 0, speed: 0 })
+      const msg = error.response?.data?.detail ||
+        (error.code === 'ECONNABORTED' ? 'Upload timeout - fișier prea mare sau conexiune lentă' :
+        'Eroare la încărcarea fișierelor')
+      toast.error(msg)
+    }
   })
 
   const deletePhotoMutation = useMutation({
@@ -1115,8 +1244,15 @@ function AdminPanel({ page }) {
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files)
     if (files.length > 0) {
+      const maxSize = 500 * 1024 * 1024 // 500MB
+      const oversized = files.filter(f => f.size > maxSize)
+      if (oversized.length > 0) {
+        toast.error(`Fișier prea mare: ${oversized[0].name} (${formatBytes(oversized[0].size)}). Maxim 500MB.`)
+        return
+      }
       uploadPhotosMutation.mutate(files)
     }
+    e.target.value = ''
   }
 
   const handleSave = () => {
@@ -1234,7 +1370,7 @@ function AdminPanel({ page }) {
         </h3>
 
         {/* Upload */}
-        <label className="block border-2 border-dashed border-gray-300 hover:border-primary rounded-xl cursor-pointer transition-colors">
+        <label className="block border-2 border-dashed border-gray-300 hover:border-primary rounded-xl cursor-pointer transition-colors bg-card/50">
           <input
             type="file"
             multiple
@@ -1243,13 +1379,35 @@ function AdminPanel({ page }) {
             onChange={handleFileUpload}
             disabled={uploadPhotosMutation.isPending}
           />
-          <div className="flex items-center justify-center gap-2 py-4 text-gray-500">
+          <div className="flex flex-col items-center py-6 text-gray-500">
             {uploadPhotosMutation.isPending ? (
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="w-full px-6 space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium">Se încarcă... {uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-primary h-3 rounded-full transition-all duration-300 relative"
+                    style={{ width: `${Math.max(uploadProgress, 2)}%` }}
+                  >
+                    {uploadProgress > 10 && (
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold">
+                        {uploadProgress}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>{formatBytes(uploadInfo.loaded)} / {formatBytes(uploadInfo.total)}</span>
+                  <span>{formatSpeed(uploadInfo.speed)}</span>
+                </div>
+              </div>
             ) : (
               <>
-                <Upload className="w-5 h-5" />
-                <span className="text-sm">Adaugă poze / videoclipuri</span>
+                <Upload className="w-8 h-8 mb-2" />
+                <span className="text-sm">Apasă pentru a adăuga poze sau videoclipuri</span>
+                <span className="text-xs text-gray-400 mt-1">Maxim 500MB per fișier</span>
               </>
             )}
           </div>
