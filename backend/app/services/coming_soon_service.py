@@ -203,7 +203,7 @@ class ComingSoonService:
             )
 
         # Delete file
-        photo_path = os.path.join(settings.upload_dir, photo.file_path)
+        photo_path = os.path.join(settings.UPLOAD_DIR, photo.file_path)
         if os.path.exists(photo_path):
             os.remove(photo_path)
 
